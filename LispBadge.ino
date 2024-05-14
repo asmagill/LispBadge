@@ -9,13 +9,17 @@ const char LispLibrary[] PROGMEM = "";
 
 // Compile options
 
+#define LISP_BADGE
+
 #define checkoverflow
 // #define resetautorun
 #define printfreespace
-#define serialmonitor
 // #define printgcs
 // #define sdcardsupport
 // #define lisplibrary
+#define assemblerlist
+// #define lineeditor
+// #define vt100
 
 // Includes
 
@@ -33,19 +37,78 @@ const char LispLibrary[] PROGMEM = "";
 #define SDSIZE 0
 #endif
 
-// Workspace - sizes in bytes
+// Platform specific settings
+
 #define WORDALIGNED __attribute__((aligned (2)))
 #define OBJECTALIGNED __attribute__((aligned (4)))
 #define BUFFERSIZE 21                     /* longest builtin name + 1 */
 
-#if defined(__AVR_ATmega1284P__)
+#if defined(__AVR_ATmega328P__)
+  #define WORKSPACESIZE (318-SDSIZE)      /* Objects (4*bytes) */
+  #define EEPROMSIZE 1024                 /* Bytes */
+  #define STACKDIFF 0
+  #define CPU_ATmega328P
+
+#elif defined(__AVR_ATmega2560__)
+  #define WORKSPACESIZE (1344-SDSIZE)     /* Objects (4*bytes) */
+  #define EEPROMSIZE 4096                 /* Bytes */
+  #define STACKDIFF 320
+  #define CPU_ATmega2560
+
+#elif defined(__AVR_ATmega1284P__)
   #include "optiboot.h"
-  #define WORKSPACESIZE (2848-SDSIZE)     /* Objects (4*bytes) */
+  #define WORKSPACESIZE (2944-SDSIZE)     /* Objects (4*bytes) */
+//   #define WORKSPACESIZE (2848-SDSIZE)     /* Objects (4*bytes) */ -- ASM why 96 bytes smaller?
 //  #define EEPROMSIZE 4096                 /* Bytes */
   #define FLASHWRITESIZE 16384            /* Bytes */
   #define CODESIZE 96                     /* Bytes <= 256 */
   #define STACKDIFF 320
   #define CPU_ATmega1284P
+#if defined(LISP_BADGE)
+  #if defined(LED_BUILTIN)
+    #undef LED_BUILTIN
+  #endif
+  #define LED_BUILTIN 7                   /* for lisp badge */
+#endif
+
+#elif defined(ARDUINO_AVR_NANO_EVERY)
+  #define WORKSPACESIZE (1060-SDSIZE)     /* Objects (4*bytes) */
+  #define EEPROMSIZE 256                  /* Bytes */
+  #define STACKDIFF 160
+  #define CPU_ATmega4809
+
+#elif defined(ARDUINO_AVR_ATmega4809)     /* Curiosity Nano using MegaCoreX */
+  #define Serial Serial3
+  #define WORKSPACESIZE (1065-SDSIZE)     /* Objects (4*bytes) */
+  #define EEPROMSIZE 256                  /* Bytes */
+  #define STACKDIFF 320
+  #define CPU_ATmega4809
+
+#elif defined(__AVR_ATmega4809__)
+  #define WORKSPACESIZE (1065-SDSIZE)     /* Objects (4*bytes) */
+  #define EEPROMSIZE 256                  /* Bytes */
+  #define STACKDIFF 320
+  #define CPU_ATmega4809
+
+#elif defined(__AVR_AVR128DA48__)
+  #include <Flash.h>
+  #define Serial Serial1
+  #define WORKSPACESIZE (2920-SDSIZE)     /* Objects (4*bytes) */
+  #define FLASHWRITESIZE 16384            /* Bytes */
+  #define CODESIZE 96                     /* Bytes <= 512 */
+  #define STACKDIFF 320
+  #define CPU_AVR128DX48
+  #define LED_BUILTIN 20
+
+#elif defined(__AVR_AVR128DB48__)
+  #include <Flash.h>
+  #define Serial Serial3
+  #define WORKSPACESIZE (2920-SDSIZE)     /* Objects (4*bytes) */
+  #define FLASHWRITESIZE 16384            /* Bytes */
+  #define CODESIZE 96                     /* Bytes <= 512 */
+  #define STACKDIFF 320
+  #define CPU_AVR128DX48
+  #define LED_BUILTIN 20
 
 #else
 #error "Board not supported!"
@@ -162,12 +225,34 @@ PRINCTOSTRING, PRIN1TOSTRING, LOGAND, LOGIOR, LOGXOR, LOGNOT, ASH, LOGBITP, EVAL
 MAKUNBOUND, BREAK, READ, PRIN1, PRINT, PRINC, TERPRI, READBYTE, READLINE, WRITEBYTE, WRITESTRING,
 WRITELINE, RESTARTI2C, GC, ROOM, SAVEIMAGE, LOADIMAGE, CLS, PINMODE, DIGITALREAD, DIGITALWRITE,
 ANALOGREAD, ANALOGREFERENCE, ANALOGREADRESOLUTION, ANALOGWRITE, DACREFERENCE, DELAY, MILLIS, SLEEP, NOTE,
-REGISTER, EDIT, PPRINT, PPRINTALL, FORMAT, REQUIRE, LISTLIBRARY, DOCUMENTATION, PLOT, PLOT3D, GLYPHPIXEL,
-PLOTPIXEL, FILLSCREEN, KEYWORDS, 
-#if defined(CPU_ATmega1284P)
-K_HIGH, K_LOW, K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_INTERNAL1V1, K_INTERNAL2V56, K_EXTERNAL,
+REGISTER, EDIT, PPRINT, PPRINTALL, FORMAT, REQUIRE, LISTLIBRARY, DOCUMENTATION, KEYWORDS,
+K_LED_BUILTIN, K_HIGH, K_LOW,
+#if defined(CPU_ATmega328P)
+K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_INTERNAL, K_EXTERNAL, K_PORTB, K_DDRB, K_PINB, K_PORTC,
+K_DDRC, K_PINC, K_PORTD, K_DDRD, K_PIND,
+#elif defined(CPU_ATmega1284P)
+K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_INTERNAL1V1, K_INTERNAL2V56, K_EXTERNAL, K_PORTA, K_DDRA,
+K_PINA, K_PORTB, K_DDRB, K_PINB, K_PORTC, K_DDRC, K_PINC, K_PORTD, K_DDRD, K_PIND,
+#elif defined(CPU_ATmega2560)
+K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_INTERNAL1V1, K_INTERNAL2V56, K_EXTERNAL, K_PORTA, K_DDRA,
+K_PINA, K_PORTB, K_DDRB, K_PINB, K_PORTC, K_DDRC, K_PINC, K_PORTD, K_DDRD, K_PIND, K_PORTE, K_DDRE,
+K_PINE, K_PORTF, K_DDRF, K_PINF, K_PORTG, K_DDRG, K_PING, K_PORTJ, K_DDRJ, K_PINJ,
+#elif defined(CPU_ATmega4809)
+K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_INTERNAL, K_VDD, K_INTERNAL0V55, K_INTERNAL1V1,
+K_INTERNAL1V5, K_INTERNAL2V5, K_INTERNAL4V3, K_EXTERNAL, K_PORTA_DIR, K_PORTA_OUT, K_PORTA_IN,
+K_PORTB_DIR, K_PORTB_OUT, K_PORTB_IN, K_PORTC_DIR, K_PORTC_OUT, K_PORTC_IN, K_PORTD_DIR, K_PORTD_OUT,
+K_PORTD_IN, K_PORTE_DIR, K_PORTE_OUT, K_PORTE_IN, K_PORTF_DIR, K_PORTF_OUT, K_PORTF_IN,
+#elif defined(CPU_AVR128DX48)
+K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_VDD, K_INTERNAL1V024, K_INTERNAL2V048, K_INTERNAL4V096,
+K_INTERNAL2V5, K_EXTERNAL, K_ADC_DAC0, K_ADC_TEMPERATURE, K_PORTA_DIR, K_PORTA_OUT, K_PORTA_IN,
+K_PORTB_DIR, K_PORTB_OUT, K_PORTB_IN, K_PORTC_DIR, K_PORTC_OUT, K_PORTC_IN, K_PORTD_DIR, K_PORTD_OUT,
+K_PORTD_IN, K_PORTE_DIR, K_PORTE_OUT, K_PORTE_IN, K_PORTF_DIR, K_PORTF_OUT, K_PORTF_IN,
 #endif
-USERFUNCTIONS, ENDFUNCTIONS, SET_SIZE = INT_MAX };
+USERFUNCTIONS,
+#if defined(LISP_BADGE)
+PLOT, PLOT3D, GLYPHPIXEL, PLOTPIXEL, FILLSCREEN,
+#endif
+ENDFUNCTIONS, SET_SIZE = INT_MAX };
 
 // Global variables
 
@@ -1534,9 +1619,24 @@ object *mapcarcan (builtin_t name, object *args, object *env, mapfun_t fun) {
 
 // I2C interface for AVR platforms, uses much less RAM than Arduino Wire
 
+#if defined(CPU_ATmega328P)
+uint8_t const TWI_SDA_PIN = 18;
+uint8_t const TWI_SCL_PIN = 19;
+#elif defined(CPU_ATmega1280) || defined(CPU_ATmega2560)
+uint8_t const TWI_SDA_PIN = 20;
+uint8_t const TWI_SCL_PIN = 21;
+#elif defined(CPU_ATmega644P) || defined(CPU_ATmega1284P)
 uint8_t const TWI_SDA_PIN = 17;
 uint8_t const TWI_SCL_PIN = 16;
+#elif defined(CPU_ATmega32U4)
+uint8_t const TWI_SDA_PIN = 6;
+uint8_t const TWI_SCL_PIN = 5;
+#endif
 
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
+uint32_t const FREQUENCY = 400000L;  // Hardware I2C clock in Hz
+uint32_t const T_RISE = 300L;        // Rise time
+#else
 uint32_t const F_TWI = 400000L;  // Hardware I2C clock in Hz
 uint8_t const TWSR_MTX_DATA_ACK = 0x28;
 uint8_t const TWSR_MTX_ADR_ACK = 0x18;
@@ -1545,31 +1645,84 @@ uint8_t const TWSR_START = 0x08;
 uint8_t const TWSR_REP_START = 0x10;
 uint8_t const I2C_READ = 1;
 uint8_t const I2C_WRITE = 0;
+#endif
 
 void I2Cinit (bool enablePullup) {
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
+  #if defined(CPU_ATmega4809)
+  if (enablePullup) {
+    pinMode(SDA, INPUT_PULLUP);
+    pinMode(SCL, INPUT_PULLUP);
+  }
+  #else
+  (void) enablePullup;
+  #endif
+  uint32_t baud = ((F_CPU/FREQUENCY) - (((F_CPU*T_RISE)/1000)/1000)/1000 - 10)/2;
+  TWI0.MBAUD = (uint8_t)baud;
+  TWI0.MCTRLA = TWI_ENABLE_bm;                                    // Enable as master, no interrupts
+  TWI0.MSTATUS = TWI_BUSSTATE_IDLE_gc;
+#else
   TWSR = 0;                        // no prescaler
   TWBR = (F_CPU/F_TWI - 16)/2;     // set bit rate factor
   if (enablePullup) {
-    digitalWrite(TWI_SDA_PIN, HIGH);
-    digitalWrite(TWI_SCL_PIN, HIGH);
+    #if defined(LISP_BADGE)
+      digitalWrite(TWI_SDA_PIN, HIGH);
+      digitalWrite(TWI_SCL_PIN, HIGH);
+    #else
+      digitalWrite(SDA, HIGH);
+      digitalWrite(SCL, HIGH);
+    #endif
   }
+#endif
 }
 
 int I2Cread () {
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
+  if (I2Ccount != 0) I2Ccount--;
+  while (!(TWI0.MSTATUS & TWI_RIF_bm));                           // Wait for read interrupt flag
+  uint8_t data = TWI0.MDATA;
+  // Check slave sent ACK?
+  if (I2Ccount != 0) TWI0.MCTRLB = TWI_MCMD_RECVTRANS_gc;         // ACK = more bytes to read
+  else TWI0.MCTRLB = TWI_ACKACT_NACK_gc;                          // Send NAK
+  return data;
+#else
   if (I2Ccount != 0) I2Ccount--;
   TWCR = 1<<TWINT | 1<<TWEN | ((I2Ccount == 0) ? 0 : (1<<TWEA));
   while (!(TWCR & 1<<TWINT));
   return TWDR;
+#endif
 }
 
 bool I2Cwrite (uint8_t data) {
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
+  TWI0.MCTRLB = TWI_MCMD_RECVTRANS_gc;                            // Prime transaction
+  TWI0.MDATA = data;                                              // Send data
+  while (!(TWI0.MSTATUS & TWI_WIF_bm));                           // Wait for write to complete
+
+  if (TWI0.MSTATUS & (TWI_ARBLOST_bm | TWI_BUSERR_bm)) return false; // Fails if bus error or arblost
+  return !(TWI0.MSTATUS & TWI_RXACK_bm);                          // Returns true if slave gave an ACK
+#else
   TWDR = data;
   TWCR = 1<<TWINT | 1 << TWEN;
   while (!(TWCR & 1<<TWINT));
   return (TWSR & 0xF8) == TWSR_MTX_DATA_ACK;
+#endif
 }
 
 bool I2Cstart (uint8_t address, uint8_t read) {
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
+  TWI0.MADDR = address<<1 | read;                                 // Send START condition
+  while (!(TWI0.MSTATUS & (TWI_WIF_bm | TWI_RIF_bm)));            // Wait for write or read interrupt flag
+  if (TWI0.MSTATUS & TWI_ARBLOST_bm) {                            // Arbitration lost or bus error
+    while (!((TWI0.MSTATUS & TWI_BUSSTATE_gm) == TWI_BUSSTATE_IDLE_gc)); // Wait for bus to return to idle state
+    return false;
+  } else if (TWI0.MSTATUS & TWI_RXACK_bm) {                       // Address not acknowledged by client
+    TWI0.MCTRLB |= TWI_MCMD_STOP_gc;                              // Send stop condition
+    while (!((TWI0.MSTATUS & TWI_BUSSTATE_gm) == TWI_BUSSTATE_IDLE_gc)); // Wait for bus to return to idle state
+    return false;
+  }
+  return true;                                                    // Return true if slave gave an ACK
+#else
   uint8_t addressRW = address<<1 | read;
   TWCR = 1<<TWINT | 1<<TWSTA | 1<<TWEN;    // Send START condition
   while (!(TWCR & 1<<TWINT));
@@ -1579,6 +1732,7 @@ bool I2Cstart (uint8_t address, uint8_t read) {
   while (!(TWCR & 1<<TWINT));
   if (addressRW & I2C_READ) return (TWSR & 0xF8) == TWSR_MRX_ADR_ACK;
   else return (TWSR & 0xF8) == TWSR_MTX_ADR_ACK;
+#endif
 }
 
 bool I2Crestart (uint8_t address, uint8_t read) {
@@ -1586,9 +1740,15 @@ bool I2Crestart (uint8_t address, uint8_t read) {
 }
 
 void I2Cstop (uint8_t read) {
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
+  (void) read;
+  TWI0.MCTRLB |= TWI_MCMD_STOP_gc;                                // Send STOP
+  while (!((TWI0.MSTATUS & TWI_BUSSTATE_gm) == TWI_BUSSTATE_IDLE_gc)); // Wait for bus to return to idle state
+#else
   (void) read;
   TWCR = 1<<TWINT | 1<<TWEN | 1<<TWSTO;
   while (TWCR & 1<<TWSTO); // wait until stop and bus released
+#endif
 }
 
 // Streams
@@ -1604,7 +1764,7 @@ inline int serial3read () { while (!Serial3.available()) testescape(); return Se
 #if defined(sdcardsupport)
 File SDpfile, SDgfile;
 inline int SDread () {
-  if (LastChar) { 
+  if (LastChar) {
     char temp = LastChar;
     LastChar = 0;
     return temp;
@@ -1697,7 +1857,7 @@ pfun_t pstreamfun (object *args) {
     else if (address == 2) pfun = serial2write;
     else if (address == 3) pfun = serial3write;
     #endif
-  }   
+  }
   else if (streamtype == STRINGSTREAM) {
     pfun = pstr;
   }
@@ -1708,51 +1868,146 @@ pfun_t pstreamfun (object *args) {
   return pfun;
 }
 
-// Check pins
+// Check pins - these are board-specific not processor-specific
 
 void checkanalogread (int pin) {
+#if defined(__AVR_ATmega328P__)
+  if (!(pin>=0 && pin<=5)) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(__AVR_ATmega2560__)
+  if (!(pin>=0 && pin<=15)) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(__AVR_ATmega1284P__)
   if (!(pin>=0 && pin<=7)) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(ARDUINO_AVR_NANO_EVERY)
+  if (!((pin>=14 && pin<=21))) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(ARDUINO_AVR_ATmega4809)  /* MegaCoreX core */
+  if (!((pin>=22 && pin<=33) || (pin>=36 && pin<=39))) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(__AVR_ATmega4809__)
+  if (!(pin>=14 && pin<=21)) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(__AVR_AVR128DA48__)
+  if (!(pin>=22 && pin<=39)) error(ANALOGREAD, invalidpin, number(pin));
+  #endif
 }
 
 void checkanalogwrite (int pin) {
+#if defined(__AVR_ATmega328P__)
+  if (!(pin==3 || pin==5 || pin==6 || (pin>=9 && pin<=11))) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(__AVR_ATmega2560__)
+  if (!((pin>=2 && pin<=13) || (pin>=44 && pin<=46))) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(__AVR_ATmega1284P__)
   if (!(pin==3 || pin==4 || pin==6 || pin==7 || (pin>=12 && pin<=15))) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(ARDUINO_AVR_NANO_EVERY)
+  if (!(pin==3 || pin==5 || pin==6 || (pin>=9 && pin<=11))) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(ARDUINO_AVR_ATmega4809)  /* MegaCoreX core */
+  if (!((pin>=16 && pin<=19) || (pin>=38 && pin<=39))) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(__AVR_ATmega4809__)
+  if (!(pin==3 || pin==5 || pin==6 || pin==9 || pin==10)) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(__AVR_AVR128DA48__)
+  if (!((pin>=4 && pin<=5) || (pin>=8 && pin<=19) || (pin>=38 && pin<=39))) error(ANALOGREAD, invalidpin, number(pin));
+#endif
 }
 
 // Note
 
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(LISP_BADGE)
 const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
+#else
+const uint8_t scale[] PROGMEM = {239,226,213,201,190,179,169,160,151,142,134,127};
+#endif
 
 void playnote (int pin, int note, int octave) {
+#if defined(CPU_ATmega328P)
+  if (pin == 3) {
+    DDRD = DDRD | 1<<DDD3; // PD3 (Arduino D3) as output
+    TCCR2A = 0<<COM2A0 | 1<<COM2B0 | 2<<WGM20; // Toggle OC2B on match
+  } else if (pin == 11) {
+    DDRB = DDRB | 1<<DDB3; // PB3 (Arduino D11) as output
+    TCCR2A = 1<<COM2A0 | 0<<COM2B0 | 2<<WGM20; // Toggle OC2A on match
+  } else error(NOTE, invalidpin, number(pin));
+  int prescaler = 9 - octave - note/12;
+  if (prescaler<3 || prescaler>6) error(NOTE, PSTR("octave out of range"), number(prescaler));
+  OCR2A = pgm_read_byte(&scale[note%12]) - 1;
+  TCCR2B = 0<<WGM22 | prescaler<<CS20;
+
+#elif defined(CPU_ATmega2560)
+  if (pin == 9) {
+    DDRH = DDRH | 1<<DDH6; // PH6 (Arduino D9) as output
+    TCCR2A = 0<<COM2A0 | 1<<COM2B0 | 2<<WGM20; // Toggle OC2B on match
+  } else if (pin == 10) {
+    DDRB = DDRB | 1<<DDB4; // PB4 (Arduino D10) as output
+    TCCR2A = 1<<COM2A0 | 0<<COM2B0 | 2<<WGM20; // Toggle OC2A on match
+  } else error(NOTE, invalidpin, number(pin));
+  int prescaler = 9 - octave - note/12;
+  if (prescaler<3 || prescaler>6) error(NOTE, PSTR("octave out of range"), number(prescaler));
+  OCR2A = pgm_read_byte(&scale[note%12]) - 1;
+  TCCR2B = 0<<WGM22 | prescaler<<CS20;
+
+#elif defined(LISP_BADGE)
   if (pin == 4) {
     int prescaler = 8 - octave - note/12;
     if (prescaler<0 || prescaler>8) error(NOTE, PSTR("octave out of range"), number(prescaler));
     tone(pin, pgm_read_word(&scale[note%12])>>prescaler);
-  } else error(NOTE, PSTR("invalid pin"), number(pin));
+  } else error(NOTE, invalidpin, number(pin));
+
+#elif defined(CPU_ATmega1284P)
+  if (pin == 14) {
+    DDRD = DDRD | 1<<DDD6; // PD6 (Arduino D14) as output
+    TCCR2A = 0<<COM2A0 | 1<<COM2B0 | 2<<WGM20; // Toggle OC2B on match
+  } else if (pin == 15) {
+    DDRD = DDRD | 1<<DDD7; // PD7 (Arduino D15) as output
+    TCCR2A = 1<<COM2A0 | 0<<COM2B0 | 2<<WGM20; // Toggle OC2A on match
+  } else error(NOTE, invalidpin, number(pin));
+  int prescaler = 9 - octave - note/12;
+  if (prescaler<3 || prescaler>6) error(NOTE, PSTR("octave out of range"), number(prescaler));
+  OCR2A = pgm_read_byte(&scale[note%12]) - 1;
+  TCCR2B = 0<<WGM22 | prescaler<<CS20;
+
+#elif defined(CPU_ATmega4809)
+  int prescaler = 8 - octave - note/12;
+  if (prescaler<0 || prescaler>8) error(NOTE, PSTR("octave out of range"), number(prescaler));
+  tone(pin, scale[note%12]>>prescaler);
+
+#elif defined(CPU_AVR128DX48)
+  int prescaler = 8 - octave - note/12;
+  if (prescaler<0 || prescaler>8) error(NOTE, PSTR("octave out of range"), number(prescaler));
+  tone(pin, pgm_read_word(&scale[note%12])>>prescaler);
+#endif
 }
 
 void nonote (int pin) {
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(LISP_BADGE)
   noTone(pin);
+#else
+  (void) pin;
+  TCCR2B = 0<<WGM22 | 0<<CS20;
+#endif
 }
 
 // Sleep
 
+#if !defined(CPU_ATmega4809) && !defined(CPU_AVR128DX48)
 // Interrupt vector for sleep watchdog
 ISR(WDT_vect) {
   WDTCSR |= 1<<WDIE;
 }
+#endif
 
 void initsleep () {
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 }
 
 void sleep (int secs) {
+#if !defined(CPU_ATmega4809) && !defined(CPU_AVR128DX48)
   // Set up Watchdog timer for 1 Hz interrupt
   WDTCSR = 1<<WDCE | 1<<WDE;
   WDTCSR = 1<<WDIE | 6<<WDP0;     // 1 sec interrupt
   delay(100);  // Give serial time to settle
   // Disable ADC and timer 0
   ADCSRA = ADCSRA & ~(1<<ADEN);
+#if defined(CPU_ATmega328P)
+  PRR = PRR | 1<<PRTIM0;
+#elif defined(CPU_ATmega2560) || defined(CPU_ATmega1284P)
   PRR0 = PRR0 | 1<<PRTIM0;
+#endif
   while (secs > 0) {
     sleep_enable();
     sleep_cpu();
@@ -1762,13 +2017,24 @@ void sleep (int secs) {
   WDTCSR = 0;
   // Enable ADC and timer 0
   ADCSRA = ADCSRA | 1<<ADEN;
+#if defined(CPU_ATmega328P)
+  PRR = PRR & ~(1<<PRTIM0);
+#elif defined(CPU_ATmega2560) || defined(CPU_ATmega1284P)
   PRR0 = PRR0 & ~(1<<PRTIM0);
+#endif
+#else
+  delay(1000*secs);
+#endif
 }
 
 // Prettyprint
 
 const int PPINDENT = 2;
+#if defined(LISP_BADGE)
 const int PPWIDTH = 42;
+#else
+const int PPWIDTH = 80;
+#endif
 
 void pcount (char c) {
   if (c == '\n') PrintCount++;
@@ -1817,7 +2083,7 @@ void superprint (object *form, int lm, pfun_t pfun) {
 }
 
 const int ppspecials = 16;
-const char ppspecial[ppspecials] PROGMEM = 
+const char ppspecial[ppspecials] PROGMEM =
   { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, DEFVAR };
 
 void supersub (object *form, int lm, int super, pfun_t pfun) {
@@ -1832,11 +2098,11 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
     #endif
     else for (int i=0; i<ppspecials; i++) {
       #if defined(CPU_ATmega4809)
-      if (sname == sym(ppspecial[i])) { special = 1; break; }    
+      if (sname == sym(ppspecial[i])) { special = 1; break; }
       #else
       if (sname == sym((builtin_t)pgm_read_byte(&ppspecial[i]))) { special = 1; break; }
-      #endif   
-    } 
+      #endif
+    }
   }
   while (form != NULL) {
     if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
@@ -1893,7 +2159,7 @@ object *call (int entry, int nargs, object *args, object *env) {
 void putcode (object *arg, int origin, int pc) {
   int code = checkinteger(DEFCODE, arg);
   uint8_t hi = (code>>8) & 0xff;
-  uint8_t lo = code & 0xff; 
+  uint8_t lo = code & 0xff;
   MyCode[origin+pc] = lo;            // Little-endian
   MyCode[origin+pc+1] = hi;
   #if defined(assemblerlist)
@@ -2407,7 +2673,7 @@ object *sp_defcode (object *args, object *env) {
   if (Flash.erasePage(CODE_ADDRESS, 1)) error2(DEFCODE, PSTR("problem erasing flash"));
   Flash.writeBytes(CODE_ADDRESS, MyCode, CODESIZE);
   #endif
-  
+
   clrflag(NOESC);
   return var;
 #else
@@ -2952,7 +3218,7 @@ object *fn_minfn (object *args, object *env) {
 
 object *fn_noteq (object *args, object *env) {
   (void) env;
-  while (args != NULL) {   
+  while (args != NULL) {
     object *nargs = args;
     int arg1 = checkinteger(NOTEQ, first(nargs));
     nargs = cdr(nargs);
@@ -3709,6 +3975,9 @@ object *fn_documentation (object *args, object *env) {
   return documentation(DOCUMENTATION, first(args), env);
 }
 
+// Insert your own function definitions here
+
+#if defined(LISP_BADGE)
 // Lisp Badge plotting
 
 void plotsub (uint8_t x, uint8_t y, uint8_t n, int ys[5]) {
@@ -3802,7 +4071,7 @@ object *fn_fillscreen (object *args, object *env) {
   return nil;
 }
 
-// Insert your own function definitions here
+#endif
 
 // Built-in symbol names
 const char string0[] PROGMEM = "nil";
@@ -3983,26 +4252,156 @@ const char string174[] PROGMEM = "format";
 const char string175[] PROGMEM = "require";
 const char string176[] PROGMEM = "list-library";
 const char string177[] PROGMEM = "documentation";
-const char string178[] PROGMEM = "plot";
-const char string179[] PROGMEM = "plot3d";
-const char string180[] PROGMEM = "glyph-pixel";
-const char string181[] PROGMEM = "plot-pixel";
-const char string182[] PROGMEM = "fill-screen";
-const char string183[] PROGMEM = "";
-#if defined(CPU_ATmega1284P)
-const char string184[] PROGMEM = ":high";
-const char string185[] PROGMEM = ":low";
-const char string186[] PROGMEM = ":input";
-const char string187[] PROGMEM = ":input-pullup";
-const char string188[] PROGMEM = ":output";
-const char string189[] PROGMEM = ":default";
-const char string190[] PROGMEM = ":internal1v1";
-const char string191[] PROGMEM = ":internal2v56";
-const char string192[] PROGMEM = ":external";
-const char string193[] PROGMEM = "";
+const char string178[] PROGMEM = "";
+const char string179[] PROGMEM = ":led-builtin";
+const char string180[] PROGMEM = ":high";
+const char string181[] PROGMEM = ":low";
+#if defined(CPU_ATmega328P)
+const char string182[] PROGMEM = ":input";
+const char string183[] PROGMEM = ":input-pullup";
+const char string184[] PROGMEM = ":output";
+const char string185[] PROGMEM = ":default";
+const char string186[] PROGMEM = ":internal";
+const char string187[] PROGMEM = ":external";
+const char string188[] PROGMEM = ":portb";
+const char string189[] PROGMEM = ":ddrb";
+const char string190[] PROGMEM = ":pinb";
+const char string191[] PROGMEM = ":portc";
+const char string192[] PROGMEM = ":ddrc";
+const char string193[] PROGMEM = ":pinc";
+const char string194[] PROGMEM = ":portd";
+const char string195[] PROGMEM = ":ddrd";
+const char string196[] PROGMEM = ":pind";
+const char string197[] PROGMEM = "";
+#elif defined(CPU_ATmega1284P)
+const char string182[] PROGMEM = ":input";
+const char string183[] PROGMEM = ":input-pullup";
+const char string184[] PROGMEM = ":output";
+const char string185[] PROGMEM = ":default";
+const char string186[] PROGMEM = ":internal1v1";
+const char string187[] PROGMEM = ":internal2v56";
+const char string188[] PROGMEM = ":external";
+const char string189[] PROGMEM = ":porta";
+const char string190[] PROGMEM = ":ddra";
+const char string191[] PROGMEM = ":pina";
+const char string192[] PROGMEM = ":portb";
+const char string193[] PROGMEM = ":ddrb";
+const char string194[] PROGMEM = ":pinb";
+const char string195[] PROGMEM = ":portc";
+const char string196[] PROGMEM = ":ddrc";
+const char string197[] PROGMEM = ":pinc";
+const char string198[] PROGMEM = ":portd";
+const char string199[] PROGMEM = ":ddrd";
+const char string200[] PROGMEM = ":pind";
+const char string201[] PROGMEM = "";
+#elif defined(CPU_ATmega2560)
+const char string182[] PROGMEM = ":input";
+const char string183[] PROGMEM = ":input-pullup";
+const char string184[] PROGMEM = ":output";
+const char string185[] PROGMEM = ":default";
+const char string186[] PROGMEM = ":internal1v1";
+const char string187[] PROGMEM = ":internal2v56";
+const char string188[] PROGMEM = ":external";
+const char string189[] PROGMEM = ":porta";
+const char string190[] PROGMEM = ":ddra";
+const char string191[] PROGMEM = ":pina";
+const char string192[] PROGMEM = ":portb";
+const char string193[] PROGMEM = ":ddrb";
+const char string194[] PROGMEM = ":pinb";
+const char string195[] PROGMEM = ":portc";
+const char string196[] PROGMEM = ":ddrc";
+const char string197[] PROGMEM = ":pinc";
+const char string198[] PROGMEM = ":portd";
+const char string199[] PROGMEM = ":ddrd";
+const char string200[] PROGMEM = ":pind";
+const char string201[] PROGMEM = ":porte";
+const char string202[] PROGMEM = ":ddre";
+const char string203[] PROGMEM = ":pine";
+const char string204[] PROGMEM = ":portf";
+const char string205[] PROGMEM = ":ddrf";
+const char string206[] PROGMEM = ":pinf";
+const char string207[] PROGMEM = ":portg";
+const char string208[] PROGMEM = ":ddrg";
+const char string209[] PROGMEM = ":ping";
+const char string210[] PROGMEM = ":portj";
+const char string211[] PROGMEM = ":ddrj";
+const char string212[] PROGMEM = ":pinj";
+const char string213[] PROGMEM = "";
+#elif defined(CPU_ATmega4809)
+const char string182[] PROGMEM = ":input";
+const char string183[] PROGMEM = ":input-pullup";
+const char string184[] PROGMEM = ":output";
+const char string185[] PROGMEM = ":default";
+const char string186[] PROGMEM = ":internal";
+const char string187[] PROGMEM = ":vdd";
+const char string188[] PROGMEM = ":internal0v55";
+const char string189[] PROGMEM = ":internal1v1";
+const char string190[] PROGMEM = ":internal1v5";
+const char string191[] PROGMEM = ":internal2v5";
+const char string192[] PROGMEM = ":internal4v3";
+const char string193[] PROGMEM = ":external";
+const char string194[] PROGMEM = ":porta-dir";
+const char string195[] PROGMEM = ":porta-out";
+const char string196[] PROGMEM = ":porta-in";
+const char string197[] PROGMEM = ":portb-dir";
+const char string198[] PROGMEM = ":portb-out";
+const char string199[] PROGMEM = ":portb-in";
+const char string200[] PROGMEM = ":portc-dir";
+const char string201[] PROGMEM = ":portc-out";
+const char string202[] PROGMEM = ":portc-in";
+const char string203[] PROGMEM = ":portd-dir";
+const char string204[] PROGMEM = ":portd-out";
+const char string205[] PROGMEM = ":portd-in";
+const char string206[] PROGMEM = ":porte-dir";
+const char string207[] PROGMEM = ":porte-out";
+const char string208[] PROGMEM = ":porte-in";
+const char string209[] PROGMEM = ":portf-dir";
+const char string210[] PROGMEM = ":portf-out";
+const char string211[] PROGMEM = ":portf-in";
+const char string212[] PROGMEM = "";
+#elif defined(CPU_AVR128DX48)
+const char string182[] PROGMEM = ":input";
+const char string183[] PROGMEM = ":input-pullup";
+const char string184[] PROGMEM = ":output";
+const char string185[] PROGMEM = ":default";
+const char string186[] PROGMEM = ":vdd";
+const char string187[] PROGMEM = ":internal1v024";
+const char string188[] PROGMEM = ":internal2v048";
+const char string189[] PROGMEM = ":internal4v096";
+const char string190[] PROGMEM = ":internal2v5";
+const char string191[] PROGMEM = ":external";
+const char string192[] PROGMEM = ":adc-dac0";
+const char string193[] PROGMEM = ":adc-temperature";
+const char string194[] PROGMEM = ":porta-dir";
+const char string195[] PROGMEM = ":porta-out";
+const char string196[] PROGMEM = ":porta-in";
+const char string197[] PROGMEM = ":portb-dir";
+const char string198[] PROGMEM = ":portb-out";
+const char string199[] PROGMEM = ":portb-in";
+const char string200[] PROGMEM = ":portc-dir";
+const char string201[] PROGMEM = ":portc-out";
+const char string202[] PROGMEM = ":portc-in";
+const char string203[] PROGMEM = ":portd-dir";
+const char string204[] PROGMEM = ":portd-out";
+const char string205[] PROGMEM = ":portd-in";
+const char string206[] PROGMEM = ":porte-dir";
+const char string207[] PROGMEM = ":porte-out";
+const char string208[] PROGMEM = ":porte-in";
+const char string209[] PROGMEM = ":portf-dir";
+const char string210[] PROGMEM = ":portf-out";
+const char string211[] PROGMEM = ":portf-in";
+const char string212[] PROGMEM = "";
 #endif
 
 // Insert your own function names here
+
+#if defined(LISP_BADGE)
+const char stringPLT[] PROGMEM = "plot";
+const char stringP3D[] PROGMEM = "plot3d";
+const char stringGPX[] PROGMEM = "glyph-pixel";
+const char stringPPX[] PROGMEM = "plot-pixel";
+const char stringFSN[] PROGMEM = "fill-screen";
+#endif
 
 // Documentation strings
 const char doc0[] PROGMEM = "nil\n"
@@ -4567,26 +4966,156 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string175, fn_require, 0x11, doc175 },
   { string176, fn_listlibrary, 0x00, doc176 },
   { string177, fn_documentation, 0x12, doc177 },
-  { string178, fn_plot, 0x06, NULL },
-  { string179, fn_plot3d, 0x03, NULL },
-  { string180, fn_glyphpixel, 0x33, NULL },
-  { string181, fn_plotpixel, 0x23, NULL },
-  { string182, fn_fillscreen, 0x01, NULL },
-  { string183, NULL, 0x00, NULL },
-#if defined(CPU_ATmega1284P)
-  { string184, (fn_ptr_type)HIGH, DIGITALWRITE, NULL },
-  { string185, (fn_ptr_type)LOW, DIGITALWRITE, NULL },
-  { string186, (fn_ptr_type)INPUT, PINMODE, NULL },
-  { string187, (fn_ptr_type)INPUT_PULLUP, PINMODE, NULL },
-  { string188, (fn_ptr_type)OUTPUT, PINMODE, NULL },
-  { string189, (fn_ptr_type)DEFAULT, ANALOGREFERENCE, NULL },
-  { string190, (fn_ptr_type)INTERNAL1V1, ANALOGREFERENCE, NULL },
-  { string191, (fn_ptr_type)INTERNAL2V56, ANALOGREFERENCE, NULL },
-  { string192, (fn_ptr_type)EXTERNAL, ANALOGREFERENCE, NULL },
-  { string193, NULL, 0x00, NULL },
+  { string178, NULL, 0x00, NULL },
+  { string179, (fn_ptr_type)LED_BUILTIN, 0, NULL },
+  { string180, (fn_ptr_type)HIGH, DIGITALWRITE, NULL },
+  { string181, (fn_ptr_type)LOW, DIGITALWRITE, NULL },
+#if defined(CPU_ATmega328P)
+  { string182, (fn_ptr_type)INPUT, PINMODE, NULL },
+  { string183, (fn_ptr_type)INPUT_PULLUP, PINMODE, NULL },
+  { string184, (fn_ptr_type)OUTPUT, PINMODE, NULL },
+  { string185, (fn_ptr_type)DEFAULT, ANALOGREFERENCE, NULL },
+  { string186, (fn_ptr_type)INTERNAL, ANALOGREFERENCE, NULL },
+  { string187, (fn_ptr_type)EXTERNAL, ANALOGREFERENCE, NULL },
+  { string188, (fn_ptr_type)&PORTB, REGISTER, NULL },
+  { string189, (fn_ptr_type)&DDRB, REGISTER, NULL },
+  { string190, (fn_ptr_type)&PINB, REGISTER, NULL },
+  { string191, (fn_ptr_type)&PORTC, REGISTER, NULL },
+  { string192, (fn_ptr_type)&DDRC, REGISTER, NULL },
+  { string193, (fn_ptr_type)&PINC, REGISTER, NULL },
+  { string194, (fn_ptr_type)&PORTD, REGISTER, NULL },
+  { string195, (fn_ptr_type)&DDRD, REGISTER, NULL },
+  { string196, (fn_ptr_type)&PIND, REGISTER, NULL },
+  { string197, NULL, 0x00, NULL },
+#elif defined(CPU_ATmega1284P)
+  { string182, (fn_ptr_type)INPUT, PINMODE, NULL },
+  { string183, (fn_ptr_type)INPUT_PULLUP, PINMODE, NULL },
+  { string184, (fn_ptr_type)OUTPUT, PINMODE, NULL },
+  { string185, (fn_ptr_type)DEFAULT, ANALOGREFERENCE, NULL },
+  { string186, (fn_ptr_type)INTERNAL1V1, ANALOGREFERENCE, NULL },
+  { string187, (fn_ptr_type)INTERNAL2V56, ANALOGREFERENCE, NULL },
+  { string188, (fn_ptr_type)EXTERNAL, ANALOGREFERENCE, NULL },
+  { string189, (fn_ptr_type)&PORTA, REGISTER, NULL },
+  { string190, (fn_ptr_type)&DDRA, REGISTER, NULL },
+  { string191, (fn_ptr_type)&PINA, REGISTER, NULL },
+  { string192, (fn_ptr_type)&PORTB, REGISTER, NULL },
+  { string193, (fn_ptr_type)&DDRB, REGISTER, NULL },
+  { string194, (fn_ptr_type)&PINB, REGISTER, NULL },
+  { string195, (fn_ptr_type)&PORTC, REGISTER, NULL },
+  { string196, (fn_ptr_type)&DDRC, REGISTER, NULL },
+  { string197, (fn_ptr_type)&PINC, REGISTER, NULL },
+  { string198, (fn_ptr_type)&PORTD, REGISTER, NULL },
+  { string199, (fn_ptr_type)&DDRD, REGISTER, NULL },
+  { string200, (fn_ptr_type)&PIND, REGISTER, NULL },
+  { string201, NULL, 0x00, NULL },
+#elif defined(CPU_ATmega2560)
+  { string182, (fn_ptr_type)INPUT, PINMODE, NULL },
+  { string183, (fn_ptr_type)INPUT_PULLUP, PINMODE, NULL },
+  { string184, (fn_ptr_type)OUTPUT, PINMODE, NULL },
+  { string185, (fn_ptr_type)DEFAULT, ANALOGREFERENCE, NULL },
+  { string186, (fn_ptr_type)INTERNAL1V1, ANALOGREFERENCE, NULL },
+  { string187, (fn_ptr_type)INTERNAL2V56, ANALOGREFERENCE, NULL },
+  { string188, (fn_ptr_type)EXTERNAL, ANALOGREFERENCE, NULL },
+  { string189, (fn_ptr_type)&PORTA, REGISTER, NULL },
+  { string190, (fn_ptr_type)&DDRA, REGISTER, NULL },
+  { string191, (fn_ptr_type)&PINA, REGISTER, NULL },
+  { string192, (fn_ptr_type)&PORTB, REGISTER, NULL },
+  { string193, (fn_ptr_type)&DDRB, REGISTER, NULL },
+  { string194, (fn_ptr_type)&PINB, REGISTER, NULL },
+  { string195, (fn_ptr_type)&PORTC, REGISTER, NULL },
+  { string196, (fn_ptr_type)&DDRC, REGISTER, NULL },
+  { string197, (fn_ptr_type)&PINC, REGISTER, NULL },
+  { string198, (fn_ptr_type)&PORTD, REGISTER, NULL },
+  { string199, (fn_ptr_type)&DDRD, REGISTER, NULL },
+  { string200, (fn_ptr_type)&PIND, REGISTER, NULL },
+  { string201, (fn_ptr_type)&PORTE, REGISTER, NULL },
+  { string202, (fn_ptr_type)&DDRE, REGISTER, NULL },
+  { string203, (fn_ptr_type)&PINE, REGISTER, NULL },
+  { string204, (fn_ptr_type)&PORTF, REGISTER, NULL },
+  { string205, (fn_ptr_type)&DDRF, REGISTER, NULL },
+  { string206, (fn_ptr_type)&PINF, REGISTER, NULL },
+  { string207, (fn_ptr_type)&PORTG, REGISTER, NULL },
+  { string208, (fn_ptr_type)&DDRG, REGISTER, NULL },
+  { string209, (fn_ptr_type)&PING, REGISTER, NULL },
+  { string210, (fn_ptr_type)&PORTJ, REGISTER, NULL },
+  { string211, (fn_ptr_type)&DDRJ, REGISTER, NULL },
+  { string212, (fn_ptr_type)&PINJ, REGISTER, NULL },
+  { string213, NULL, 0x00, NULL },
+#elif defined(CPU_ATmega4809)
+  { string182, (fn_ptr_type)INPUT, PINMODE, NULL },
+  { string183, (fn_ptr_type)INPUT_PULLUP, PINMODE, NULL },
+  { string184, (fn_ptr_type)OUTPUT, PINMODE, NULL },
+  { string185, (fn_ptr_type)DEFAULT, ANALOGREFERENCE, NULL },
+  { string186, (fn_ptr_type)INTERNAL, ANALOGREFERENCE, NULL },
+  { string187, (fn_ptr_type)VDD, ANALOGREFERENCE, NULL },
+  { string188, (fn_ptr_type)INTERNAL0V55, ANALOGREFERENCE, NULL },
+  { string189, (fn_ptr_type)INTERNAL1V1, ANALOGREFERENCE, NULL },
+  { string190, (fn_ptr_type)INTERNAL1V5, ANALOGREFERENCE, NULL },
+  { string191, (fn_ptr_type)INTERNAL2V5, ANALOGREFERENCE, NULL },
+  { string192, (fn_ptr_type)INTERNAL4V3, ANALOGREFERENCE, NULL },
+  { string193, (fn_ptr_type)EXTERNAL, ANALOGREFERENCE, NULL },
+  { string194, (fn_ptr_type)&PORTA_DIR, REGISTER, NULL },
+  { string195, (fn_ptr_type)&PORTA_OUT, REGISTER, NULL },
+  { string196, (fn_ptr_type)&PORTA_IN, REGISTER, NULL },
+  { string197, (fn_ptr_type)&PORTB_DIR, REGISTER, NULL },
+  { string198, (fn_ptr_type)&PORTB_OUT, REGISTER, NULL },
+  { string199, (fn_ptr_type)&PORTB_IN, REGISTER, NULL },
+  { string200, (fn_ptr_type)&PORTC_DIR, REGISTER, NULL },
+  { string201, (fn_ptr_type)&PORTC_OUT, REGISTER, NULL },
+  { string202, (fn_ptr_type)&PORTC_IN, REGISTER, NULL },
+  { string203, (fn_ptr_type)&PORTD_DIR, REGISTER, NULL },
+  { string204, (fn_ptr_type)&PORTD_OUT, REGISTER, NULL },
+  { string205, (fn_ptr_type)&PORTD_IN, REGISTER, NULL },
+  { string206, (fn_ptr_type)&PORTE_DIR, REGISTER, NULL },
+  { string207, (fn_ptr_type)&PORTE_OUT, REGISTER, NULL },
+  { string208, (fn_ptr_type)&PORTE_IN, REGISTER, NULL },
+  { string209, (fn_ptr_type)&PORTF_DIR, REGISTER, NULL },
+  { string210, (fn_ptr_type)&PORTF_OUT, REGISTER, NULL },
+  { string211, (fn_ptr_type)&PORTF_IN, REGISTER, NULL },
+  { string212, NULL, 0x00, NULL },
+#elif defined(CPU_AVR128DX48)
+  { string182, (fn_ptr_type)INPUT, PINMODE, NULL },
+  { string183, (fn_ptr_type)INPUT_PULLUP, PINMODE, NULL },
+  { string184, (fn_ptr_type)OUTPUT, PINMODE, NULL },
+  { string185, (fn_ptr_type)DEFAULT, ANALOGREFERENCE, NULL },
+  { string186, (fn_ptr_type)VDD, ANALOGREFERENCE, NULL },
+  { string187, (fn_ptr_type)INTERNAL1V024, ANALOGREFERENCE, NULL },
+  { string188, (fn_ptr_type)INTERNAL2V048, ANALOGREFERENCE, NULL },
+  { string189, (fn_ptr_type)INTERNAL4V096, ANALOGREFERENCE, NULL },
+  { string190, (fn_ptr_type)INTERNAL2V5, ANALOGREFERENCE, NULL },
+  { string191, (fn_ptr_type)EXTERNAL, ANALOGREFERENCE, NULL },
+  { string192, (fn_ptr_type)ADC_DAC0, ANALOGREAD, NULL },
+  { string193, (fn_ptr_type)ADC_TEMPERATURE, ANALOGREAD, NULL },
+  { string194, (fn_ptr_type)&PORTA_DIR, REGISTER, NULL },
+  { string195, (fn_ptr_type)&PORTA_OUT, REGISTER, NULL },
+  { string196, (fn_ptr_type)&PORTA_IN, REGISTER, NULL },
+  { string197, (fn_ptr_type)&PORTB_DIR, REGISTER, NULL },
+  { string198, (fn_ptr_type)&PORTB_OUT, REGISTER, NULL },
+  { string199, (fn_ptr_type)&PORTB_IN, REGISTER, NULL },
+  { string200, (fn_ptr_type)&PORTC_DIR, REGISTER, NULL },
+  { string201, (fn_ptr_type)&PORTC_OUT, REGISTER, NULL },
+  { string202, (fn_ptr_type)&PORTC_IN, REGISTER, NULL },
+  { string203, (fn_ptr_type)&PORTD_DIR, REGISTER, NULL },
+  { string204, (fn_ptr_type)&PORTD_OUT, REGISTER, NULL },
+  { string205, (fn_ptr_type)&PORTD_IN, REGISTER, NULL },
+  { string206, (fn_ptr_type)&PORTE_DIR, REGISTER, NULL },
+  { string207, (fn_ptr_type)&PORTE_OUT, REGISTER, NULL },
+  { string208, (fn_ptr_type)&PORTE_IN, REGISTER, NULL },
+  { string209, (fn_ptr_type)&PORTF_DIR, REGISTER, NULL },
+  { string210, (fn_ptr_type)&PORTF_OUT, REGISTER, NULL },
+  { string211, (fn_ptr_type)&PORTF_IN, REGISTER, NULL },
+  { string212, NULL, 0x00, NULL },
 #endif
 
 // Insert your own table entries here
+
+#if defined(LISP_BADGE)
+  { stringPLT, fn_plot, 0x06, NULL },
+  { stringP3D, fn_plot3d, 0x03, NULL },
+  { stringGPX, fn_glyphpixel, 0x33, NULL },
+  { stringPPX, fn_plotpixel, 0x23, NULL },
+  { stringFSN, fn_fillscreen, 0x01, NULL },
+#endif
 
 };
 
@@ -4638,9 +5167,7 @@ char *lookupdoc (builtin_t name) {
 }
 
 void testescape () {
-#if defined serialmonitor
   if (Serial.read() == '~') error2(NIL, PSTR("escape!"));
-#endif
 }
 
 // Main evaluator
@@ -4813,11 +5340,11 @@ object *eval (object *form, object *env) {
 
 void pserial (char c) {
   LastPrint = c;
+#if defined(LISP_BADGE)
   Display(c);
-  #if defined (serialmonitor)
+#endif
   if (c == '\n') Serial.write('\r');
   Serial.write(c);
-  #endif
 }
 
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
@@ -4941,7 +5468,7 @@ void pintbase (uint16_t i, uint8_t base, pfun_t pfun) {
 void printhex2 (int i, pfun_t pfun) {
   for (unsigned int d=0x10; d>0; d=d>>4) {
     unsigned int j = i/d;
-    pfun((j<10) ? j+'0' : j+'W'); 
+    pfun((j<10) ? j+'0' : j+'W');
     i = i - j*d;
   }
 }
@@ -5001,21 +5528,19 @@ void prin1object (object *form, pfun_t pfun) {
   Flags = temp;
 }
 
-// For Lisp Badge
-volatile int WritePtr = 0, ReadPtr = 0;
-const int KybdBufSize = 333; // 42*8 - 3
-char KybdBuf[KybdBufSize];
-volatile uint8_t KybdAvailable = 0;
-
 // Read functions
 
 int glibrary () {
-  if (LastChar) { 
+  if (LastChar) {
     char temp = LastChar;
     LastChar = 0;
     return temp;
   }
+  #if defined(CPU_ATmega4809)
+  char c = LispLibrary[GlobalStringIndex++];
+  #else
   char c = pgm_read_byte(&LispLibrary[GlobalStringIndex++]);
+  #endif
   return (c != 0) ? c : -1; // -1?
 }
 
@@ -5030,19 +5555,127 @@ void loadfromlibrary (object *env) {
   }
 }
 
+// For line editor
+const int TerminalWidth = 80;
+volatile int WritePtr = 0, ReadPtr = 0;
+const int KybdBufSize = 333; // 42*8 - 3
+char KybdBuf[KybdBufSize];
+volatile uint8_t KybdAvailable = 0;
+
+#if defined(lineeditor)
+// Parenthesis highlighting
+void esc (int p, char c) {
+  Serial.write('\e'); Serial.write('[');
+  Serial.write((char)('0'+ p/100));
+  Serial.write((char)('0'+ (p/10) % 10));
+  Serial.write((char)('0'+ p % 10));
+  Serial.write(c);
+}
+
+void hilight (char c) {
+  Serial.write('\e'); Serial.write('['); Serial.write(c); Serial.write('m');
+}
+
+void Highlight (int p, int wp, uint8_t invert) {
+  wp = wp + 2; // Prompt
+#if defined (printfreespace)
+  int f = Freespace;
+  while (f) { wp++; f=f/10; }
+#endif
+  int line = wp/TerminalWidth;
+  int col = wp%TerminalWidth;
+  int targetline = (wp - p)/TerminalWidth;
+  int targetcol = (wp - p)%TerminalWidth;
+  int up = line-targetline, left = col-targetcol;
+  if (p) {
+    if (up) esc(up, 'A');
+    if (col > targetcol) esc(left, 'D'); else esc(-left, 'C');
+    if (invert) hilight('7');
+    Serial.write('('); Serial.write('\b');
+    // Go back
+    if (up) esc(up, 'B'); // Down
+    if (col > targetcol) esc(left, 'C'); else esc(-left, 'D');
+    Serial.write('\b'); Serial.write(')');
+    if (invert) hilight('0');
+  }
+}
+
+void processkey (char c) {
+  if (c == 27) { setflag(ESCAPE); return; }    // Escape key
+#if defined(vt100)
+  static int parenthesis = 0, wp = 0;
+  // Undo previous parenthesis highlight
+  Highlight(parenthesis, wp, 0);
+  parenthesis = 0;
+#endif
+  // Edit buffer
+  if (c == '\n' || c == '\r') {
+    pserial('\n');
+    KybdAvailable = 1;
+    ReadPtr = 0;
+    return;
+  }
+  if (c == 8 || c == 0x7f) {     // Backspace key
+    if (WritePtr > 0) {
+      WritePtr--;
+      Serial.write(8); Serial.write(' '); Serial.write(8);
+      if (WritePtr) c = KybdBuf[WritePtr-1];
+    }
+  } else if (WritePtr < KybdBufSize) {
+    KybdBuf[WritePtr++] = c;
+    Serial.write(c);
+  }
+#if defined(vt100)
+  // Do new parenthesis highlight
+  if (c == ')') {
+    int search = WritePtr-1, level = 0;
+    while (search >= 0 && parenthesis == 0) {
+      c = KybdBuf[search--];
+      if (c == ')') level++;
+      if (c == '(') {
+        level--;
+        if (level == 0) {parenthesis = WritePtr-search-1; wp = WritePtr; }
+      }
+    }
+    Highlight(parenthesis, wp, 1);
+  }
+#endif
+  return;
+}
+#endif
+
 int gserial () {
   if (LastChar) {
     char temp = LastChar;
     LastChar = 0;
     return temp;
   }
-  #if defined (serialmonitor)
+
+#if !defined(CPU_ATmega328P)
   unsigned long start = millis();
-  while (!Serial.available() && !KybdAvailable) if (millis() - start > 1000) clrflag(NOECHO);
+#endif
+  while (!Serial.available() && !KybdAvailable) {
+#if !defined(CPU_ATmega328P)
+    if (millis() - start > 1000) clrflag(NOECHO);
+#endif
+  }
+
   if (Serial.available()) {
     char temp = Serial.read();
-    if (temp != '\n' && !tstflag(NOECHO)) Serial.print(temp); // Don't print on Lisp Badge
+#if defined(lineeditor)
+    processkey(temp) ;
+    if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
+    KybdAvailable = 0;
+    WritePtr = 0;
+    return '\n';
+#elif defined(CPU_ATmega328P)
+    if (temp != '\n') pserial(temp);
     return temp;
+#else
+    if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
+    return temp;
+#endif
+#if defined(LISP_BADGE)
   } else {
     if (ReadPtr != WritePtr) {
       char temp = KybdBuf[ReadPtr++];
@@ -5052,14 +5685,8 @@ int gserial () {
     KybdAvailable = 0;
     WritePtr = 0;
     return '\n';
+#endif
   }
-  #else
-  while (!KybdAvailable);
-  if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
-  KybdAvailable = 0;
-  WritePtr = 0;
-  return '\n';
-  #endif
 }
 
 object *nextitem (gfun_t gfun) {
@@ -5141,7 +5768,7 @@ object *nextitem (gfun_t gfun) {
   if (ch == ')' || ch == '(') LastChar = ch;
 
   if (isnumber) {
-    if (base == 10 && result > ((unsigned int)INT_MAX+(1-sign)/2)) 
+    if (base == 10 && result > ((unsigned int)INT_MAX+(1-sign)/2))
       error2(NIL, PSTR("Number out of range"));
     return number(result*sign);
   } else if (base == 0) {
@@ -5159,7 +5786,7 @@ object *nextitem (gfun_t gfun) {
     if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2(NIL, PSTR("unknown character"));
   }
-  
+
   builtin_t x = lookupbuiltin(buffer);
   if (x == NIL) return nil;
   if (x != ENDFUNCTIONS) return bsymbol(x);
@@ -5202,6 +5829,7 @@ object *read (gfun_t gfun) {
   return item;
 }
 
+#if defined(LISP_BADGE)
 // Lisp Badge terminal and keyboard support
 
 // These are the bit positions in PORTA
@@ -5312,7 +5940,7 @@ const uint8_t CharMap[96][6] PROGMEM = {
 { 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0 }
 };
 
-void Send (uint8_t d) {  
+void Send (uint8_t d) {
   for (uint8_t bit = 0x80; bit; bit >>= 1) {
     PINA = 1<<clk;                        // clk low
     if (d & bit) PORTA = PORTA | (1<<data); else PORTA = PORTA & ~(1<<data);
@@ -5335,7 +5963,7 @@ void InitDisplay () {
 
 // Character terminal **********************************************
 
-uint8_t Grey = 0xF;                       // Grey level; 0 to 15
+uint8_t const Grey = 0xF;                       // Grey level; 0 to 15
 
 // Optimised for fast scrolling
 void ClearLine (uint8_t line, uint8_t grey) {
@@ -5453,7 +6081,7 @@ const int ColumnsD = 0b11111100;            // Columns 5 to 11 in port D
 const int RowBits  = 0b00001111;            // Rows 0 to 4 in port B
 
 // Character set - stored in program memory
-const char Keymap[] PROGMEM = 
+const char Keymap[] PROGMEM =
 // Without shift
 "1234567890\b" "qwertyuiop\n" "asdfghjkl \e" " zxcvbnm()."
 // With shift
@@ -5489,7 +6117,7 @@ ISR(TIMER1_OVF_vect, ISR_NOBLOCK) {
   column = (column + 1) % 11;   // 0 to 10
   if (column < 5) PORTC = PORTC & ~(1<<(6-column)); else PORTD = PORTD & ~(1<<(12-column));
 }
-  
+
 void ProcessKey (char c) {
   static int parenthesis = 0;
   if (c == 27) { setflag(ESCAPE); return; }    // Escape key
@@ -5545,6 +6173,7 @@ void InitKybd () {
   TCCR1B = 1<<WGM12 | 3<<CS10;    // Divide clock by 64
   TIMSK1 = 1<<TOIE1;              // Overflow interrupt
 }
+#endif
 
 // Setup
 
@@ -5554,14 +6183,14 @@ void initenv () {
 }
 
 void setup () {
+#if defined(LISP_BADGE)
   InitDisplay();
   InitKybd();
-  #if defined (serialmonitor)
   pinMode(8, INPUT_PULLUP); // RX0
+#endif
   Serial.begin(9600);
   int start = millis();
-  while (millis() - start < 5000) { if (Serial) break; }
-  #endif
+  while ((millis() - start) < 5000) { if (Serial) break; }
   initworkspace();
   initenv();
   initsleep();
@@ -5607,7 +6236,10 @@ void loop () {
   }
   // Come here after error
   delay(100); while (Serial.available()) Serial.read();
-  clrflag(NOESC); BreakLevel = 0; nonote(4);
+  clrflag(NOESC); BreakLevel = 0;
+#if defined(LISP_BADGE)
+  nonote(4);
+#endif
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
   #if defined(sdcardsupport)
   SDpfile.close(); SDgfile.close();
