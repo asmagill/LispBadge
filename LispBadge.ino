@@ -152,6 +152,14 @@ const char sdstream[] PROGMEM = "sd";
 const char stringstream[] PROGMEM = "string";
 PGM_P const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sdstream, stringstream};
 
+#if defined(LISP_BADGE)
+// These are the bit positions in PORTA
+int const clk = 7;   // PA7
+int const data = 6;  // PA6
+int const dc = 5;    // PA5
+int const cs = 4;    // PA4
+#endif
+
 // Typedefs
 
 typedef uint16_t symbol_t;
@@ -2007,6 +2015,11 @@ void ulisp_sleep () {
 }
 
 void doze (int secs) {
+#if defined(LISP_BADGE)
+  PINA = 1<<dc | 1<<cs;                   // dc and cs low
+  Send(0xAE);                             // Display off
+  PINA = 1<<dc | 1<<cs;                   // dc and cs low
+#endif
 #if defined(CPU_ATmega2560) || defined(CPU_ATmega1284P)
   // Set up Watchdog timer for 1 Hz interrupt
   WDTCSR = 1<<WDCE | 1<<WDE;
@@ -2025,6 +2038,11 @@ void doze (int secs) {
   PRR0 = PRR0 & ~(1<<PRTIM0);
 #else
   delay(1000*secs);
+#endif
+#if defined(LISP_BADGE)
+  PINA = 1<<dc | 1<<cs;                   // dc and cs low
+  Send(0xAF);                             // Display on
+  PINA = 1<<dc | 1<<cs;                   // dc and cs low
 #endif
 }
 
@@ -5795,12 +5813,6 @@ object *read (gfun_t gfun) {
 
 #if defined(LISP_BADGE)
 // Lisp Badge terminal and keyboard support
-
-// These are the bit positions in PORTA
-int const clk = 7;   // PA7
-int const data = 6;  // PA6
-int const dc = 5;    // PA5
-int const cs = 4;    // PA4
 
 // Terminal **********************************************************************************
 
