@@ -5650,32 +5650,29 @@ int gserial () {
     LastChar = 0;
     return temp;
   }
-
-#if !defined(CPU_ATmega328P)
-  unsigned long start = millis();
-#endif
-  while (!Serial.available() && !KybdAvailable) {
-#if !defined(CPU_ATmega328P)
-    if (millis() - start > 1000) clrflag(NOECHO);
-#endif
+#if defined(lineeditor)
+  while (!KybdAvailable) {
+    if (Serial.available()) {
+      char temp = Serial.read();
+      processkey(temp);
+    }
   }
-
+  if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
+  KybdAvailable = 0;
+  WritePtr = 0;
+  return '\n';
+#elif defined(CPU_ATmega328P)
+  while (!Serial.available());
+  char temp = Serial.read();
+  if (temp != '\n') pserial(temp);
+  return temp;
+#elif defined(LISP_BADGE)
+  unsigned long start = millis();
+  while (!Serial.available() && !KybdAvailable) if (millis() - start > 1000) clrflag(NOECHO);
   if (Serial.available()) {
     char temp = Serial.read();
-#if defined(lineeditor)
-    processkey(temp) ;
-    if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
-    KybdAvailable = 0;
-    WritePtr = 0;
-    return '\n';
-#elif defined(CPU_ATmega328P)
-    if (temp != '\n') pserial(temp);
+    if (temp != '\n' && !tstflag(NOECHO)) Serial.print(temp); // Don't print on Lisp Badge
     return temp;
-#else
-    if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
-    return temp;
-#endif
-#if defined(LISP_BADGE)
   } else {
     if (ReadPtr != WritePtr) {
       char temp = KybdBuf[ReadPtr++];
@@ -5685,8 +5682,14 @@ int gserial () {
     KybdAvailable = 0;
     WritePtr = 0;
     return '\n';
-#endif
   }
+#else
+  unsigned long start = millis();
+  while (!Serial.available()) if (millis() - start > 1000) clrflag(NOECHO);
+  char temp = Serial.read();
+  if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
+  return temp;
+#endif
 }
 
 object *nextitem (gfun_t gfun) {
