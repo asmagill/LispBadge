@@ -2008,8 +2008,10 @@ void ulisp_sleep () {
 #if defined(CPU_ATmega2560) || defined(CPU_ATmega1284P)
   ADCSRA = ADCSRA & ~(1<<ADEN); // Turn off ADC
   delay(100);  // Give serial time to settle
+  PRR0 = PRR0 | 1<<PRTIM0;
   sleep_enable();
   sleep_cpu();
+  PRR0 = PRR0 & ~(1<<PRTIM0);
   ADCSRA = ADCSRA | 1<<ADEN; // Turn on ADC
 #endif
 }
@@ -2024,18 +2026,9 @@ void doze (int secs) {
   // Set up Watchdog timer for 1 Hz interrupt
   WDTCSR = 1<<WDCE | 1<<WDE;
   WDTCSR = 1<<WDIE | 6<<WDP0;     // 1 sec interrupt
-  delay(100);  // Give serial time to settle
-  ADCSRA = ADCSRA & ~(1<<ADEN); // Turn off ADC
-  PRR0 = PRR0 | 1<<PRTIM0;
-  while (secs > 0) {
-    sleep_enable();
-    sleep_cpu();
-    secs--;
-  }
+  while (secs > 0) { ulisp_sleep(); secs--; }
   WDTCSR = 1<<WDCE | 1<<WDE;     // Disable watchdog
   WDTCSR = 0;
-  ADCSRA = ADCSRA | 1<<ADEN; // Turn on ADC
-  PRR0 = PRR0 & ~(1<<PRTIM0);
 #else
   delay(1000*secs);
 #endif
