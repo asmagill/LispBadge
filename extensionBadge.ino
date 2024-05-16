@@ -6,6 +6,8 @@
 
 // Support Functions and Variables
 
+#define SHIFT_KEY 23
+
 extern const uint8_t CharMap[96][6] PROGMEM;
 
 void plotsub (uint8_t x, uint8_t y, uint8_t n, int ys[5]) {
@@ -19,6 +21,32 @@ void plotsub (uint8_t x, uint8_t y, uint8_t n, int ys[5]) {
       }
     }
     PlotByte(x>>1, y, blob);
+  }
+}
+
+bool checkkey (char key) {
+  for (uint8_t k=0; k<44; k++) {
+    if (k != 31) { // filler that throws off testing for space
+      if (pgm_read_byte(&Keymap[k]) == key) {
+        uint8_t column = k % 11;
+        if (column < 5) PORTC = PORTC & ~(1<<(6-column)); else PORTD = PORTD & ~(1<<(12-column));
+        uint8_t row = 3 - k/11; // Gives port time to settle
+        uint8_t input = PINB;
+        if (column < 5) PORTC = PORTC | 1<<(6-column); else PORTD = PORTD | 1<<(12-column);
+        return ((input & 1<<row) == 0);
+      }
+    }
+  }
+  return false;
+}
+
+void keyboard (bool enable) {
+  if (enable) TIMSK1 = 1<<TOIE1;
+  else {
+    TIMSK1 = 0;
+    // Take columns high
+    PORTC = PORTC | ColumnsC;       // Columns 0 to 4
+    PORTD = PORTD | ColumnsD;       // Columns 5 to 11
   }
 }
 
@@ -99,6 +127,19 @@ object *fn_fillscreen (object *args, object *env) {
   return nil;
 }
 
+
+object *fn_checkkey (object *args, object *env) {
+  (void) env;
+  return checkkey(checkchar(first(args))) ? tee : nil;
+}
+
+object *fn_keyboard (object *args, object *env) {
+  (void) env;
+  object *enable = first(args);
+  keyboard(enable != NULL);
+  return enable;
+}
+
 // Symbol Names
 
 const char stringPLT[] PROGMEM = "plot";
@@ -107,35 +148,48 @@ const char stringGPX[] PROGMEM = "glyph-pixel";
 const char stringPPX[] PROGMEM = "plot-pixel";
 const char stringFSN[] PROGMEM = "fill-screen";
 
+const char stringCHK[] PROGMEM = "check-key";
+const char stringKBD[] PROGMEM = "keyboard";
+const char stringSFT[] PROGMEM = ":shift-key";
+
 // Documentation strings
 
-const char doc_plot[] PROGMEM = "(plot [x-intercept y-intercept] [function]...)\n"
+const char docPLT[] PROGMEM = "(plot [x-intercept y-intercept] [function]...)\n"
 "Plots up to four functions on the same graph, optionally with axes.\n"
 "Each function should be a function of one parameter, the x coordinate, and it will be called with\n"
 "each value of x from 0 to 255. The function should return the y value, from 0 to 63.";
-const char doc_plot3d[] PROGMEM = "(plot3d [x-intercept y-intercept] [function])\n"
+const char docP3D[] PROGMEM = "(plot3d [x-intercept y-intercept] [function])\n"
 "The function should be a function of two parameters, the x and y coordinates.\n"
 "It will be called with each value of x from 0 to 255 and y from 0 to 63\n"
 "The function should return the greyscale value to be plotted, from 0 to 15.";
-const char doc_glyphpixel[] PROGMEM = "(glyph-pixel char x y)\n"
+const char docGPX[] PROGMEM = "(glyph-pixel char x y)\n"
 "Returns the pixel value from the 6x8 bitmap for character char, where x can be from 0 to 5\n"
 "and y can be from 0 to 7.";
-const char doc_plotpixel[] PROGMEM = "(plot-pixel x y [pixel])\n"
+const char docPPX[] PROGMEM = "(plot-pixel x y [pixel])\n"
 "Plots a pixel to the specified x,y coordinates, where x should be 0 to 127 and y should\n"
 "be 0 to 63.\n"
 "Because of the way that the display memory is mapped to the display, plot-pixel plots\n"
 "two adjacent pixels with an x resolution of 128. The third parameter pixel specified the\n"
 "colours of the two pixels; if omitted it defaults to #xFF which gives two adjacent white pixels.\n";
-const char doc_fillscreen[] PROGMEM = "(fill-screen [colour])\n"
+const char docFSN[] PROGMEM = "(fill-screen [colour])\n"
 "Clears the screen to black, or fills it with a specified pixel value.";
+
+const char docCHK[] PROGMEM = "(check-key char)\n"
+"Returns t if the key char is pressed, or nil if not.";
+const char docKBD[] PROGMEM = "(keyboard enable)\n"
+"Disables the keyboard if enable is nil.";
 
 // Symbol lookup table
 const tbl_entry_t lookup_table2[] PROGMEM = {
-  { stringPLT, fn_plot,       0206, doc_plot },
-  { stringP3D, fn_plot3d,     0203, doc_plot3d },
-  { stringGPX, fn_glyphpixel, 0233, doc_glyphpixel },
-  { stringPPX, fn_plotpixel,  0223, doc_plotpixel },
-  { stringFSN, fn_fillscreen, 0201, doc_fillscreen },
+  { stringPLT, fn_plot,               0206, docPLT },
+  { stringP3D, fn_plot3d,             0203, docP3D },
+  { stringGPX, fn_glyphpixel,         0233, docGPX },
+  { stringPPX, fn_plotpixel,          0223, docPPX },
+  { stringFSN, fn_fillscreen,         0201, docFSN },
+
+  { stringCHK, fn_checkkey,           0211, docCHK },
+  { stringKBD, fn_keyboard,           0211, docKBD },
+  { stringSFT, (fn_ptr_type)SHIFT_KEY,   0, NULL },
 };
 
 // Table cross-reference functions
