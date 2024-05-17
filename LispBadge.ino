@@ -2280,6 +2280,7 @@ object *sp_loop (object *args, object *env) {
       }
       args = cdr(args);
     }
+    testescape();
   }
 }
 
@@ -3822,7 +3823,10 @@ object *fn_dacreference (object *args, object *env) {
 object *fn_delay (object *args, object *env) {
   (void) env;
   object *arg1 = first(args);
-  delay(checkinteger(arg1));
+  unsigned long start = millis();
+  unsigned long total = checkinteger(arg1);
+  do testescape();
+  while (millis() - start < total);
   return arg1;
 }
 
@@ -5138,6 +5142,9 @@ bool findsubstring (char *part, builtin_t name) {
 
 void testescape () {
   if (Serial.read() == '~') error2(PSTR("escape!"));
+#if defined(LISP_BADGE)
+  if (tstflag(ESCAPE)) error2(PSTR("escape!"));
+#endif
 }
 
 bool keywordp (object *obj) {
@@ -5325,7 +5332,7 @@ object *eval (object *form, object *env) {
 void pserial (char c) {
   LastPrint = c;
 #if defined(LISP_BADGE)
-  Display(c);
+  if (!tstflag(NOECHO)) Display(c);         // Don't display on LispBadge when paste in listing
 #endif
   if (c == '\n') Serial.write('\r');
   Serial.write(c);
@@ -5869,15 +5876,18 @@ void loop () {
 void ulispreset () {
   // Come here after error
   delay(100); while (Serial.available()) Serial.read();
-  clrflag(NOESC); BreakLevel = 0;
 #if defined(LISP_BADGE)
   nonote(4);
 #endif
+  clrflag(NOESC); clrflag(ESCAPE); BreakLevel = 0;
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
   #if defined(sdcardsupport)
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
+  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); clrflag(NOECHO); }
   #endif
+#if defined(LISP_BADGE)
+  keyboard(true);
+#endif
 }
