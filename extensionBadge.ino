@@ -7,10 +7,13 @@
 // Lisp Badge terminal and keyboard support
 
 // These are the bit positions in PORTA
-int const clk = 7;   // PA7
-int const data = 6;  // PA6
-int const dc = 5;    // PA5
-int const cs = 4;    // PA4
+uint8_t const clk = 7;   // PA7
+uint8_t const data = 6;  // PA6
+uint8_t const dc = 5;    // PA5
+uint8_t const cs = 4;    // PA4
+
+const uint16_t xsize = 128;
+const uint16_t ysize = 64;
 
 // Terminal **********************************************************************************
 
@@ -139,6 +142,8 @@ void InitDisplay () {
 
 uint8_t const Grey = 0xF;                       // Grey level; 0 to 15
 
+int16_t Xpos, Ypos ;
+
 // Optimised for fast scrolling
 void ClearLine (uint8_t line, uint8_t grey) {
   PINA = 1<<dc | 1<<cs;                   // dc and cs low
@@ -146,7 +151,7 @@ void ClearLine (uint8_t line, uint8_t grey) {
   Send(0x10);                             // Column start high
   Send(0xB0); Send(line<<3);              // Row start
   PINA = 1<<dc;                           // dc high
-  for (int i=0; i<128*8; i++) Send(grey);
+  for (uint16_t i=0; i<xsize*8; i++) Send(grey);
   PINA = 1<<cs;                           // cs high
 }
 
@@ -190,17 +195,159 @@ void PlotChar (uint8_t ch, uint8_t line, uint8_t column) {
   PINA = 1<<cs;                           // cs high
 }
 
-void PlotByte (int x, int y, int grey) {
+void PlotByte (int16_t x, int16_t y, int16_t grey) {
+  if ((x < 0) || (x >= xsize) || (y < 0) || (y >= ysize)) return ;
   PINA = 1<<cs | 1<<dc;                   // cs and dc low
   Send(0x00 + (x & 0x0F));                // Column start low
   Send(0x10 + (x >> 4));                  // Column start high
-  Send(0xB0); Send(63-y);                 // Row start
+  Send(0xB0); Send((ysize - 1)-y);        // Row start
   PINA = 1<<dc;                           // dc high
   Send(grey);
   PINA = 1<<cs;                           // cs high
 }
 
-const int LastColumn = 41;
+// Move current plot position to x,y
+void MoveTo (int16_t x, int16_t y) {
+  Xpos = x; Ypos = y;
+}
+
+// Draw a line from Xpos,Ypos to x,y
+void DrawTo (int16_t x, int16_t y, uint8_t grey) {
+  int16_t sx, sy, e2, err;
+  int16_t dx = abs(x - Xpos);
+  int16_t dy = abs(y - Ypos);
+  if (Xpos < x) sx = 1; else sx = -1;
+  if (Ypos < y) sy = 1; else sy = -1;
+  err = dx - dy;
+  for (;;) {
+    PlotByte(Xpos, Ypos, grey);
+    if (Xpos==x && Ypos==y) break;
+    e2 = err<<1;
+    if (e2 > -dy) { err = err - dy; Xpos = Xpos + sx; }
+    if (e2 < dx) { err = err + dx; Ypos = Ypos + sy; }
+  }
+//   PlotByte(255, 0, grey); // Flush
+}
+
+void DrawRect (int16_t w, int16_t h, uint8_t colour) {
+  if (w < 0) w = 0 ;
+  if (h < 0) h = 0 ;
+  int16_t x = Xpos, y = Ypos;
+  MoveTo(x, y); DrawTo(x+w-1, y, colour);
+  DrawTo(x+w-1, y+h-1, colour); DrawTo(x, y+h-1, colour);
+  DrawTo(x, y, colour);
+}
+
+void FillRect (int16_t w, int16_t h, uint8_t colour) {
+  if (w < 0) w = 0 ;
+  if (h < 0) h = 0 ;
+  int16_t x = Xpos, y = Ypos;
+  for (int16_t i=x; i<x+w; i++) {
+    MoveTo(i, y); DrawTo(i, y-h+1, colour);
+  }
+  Xpos = x; Ypos = y;
+}
+
+void DrawCircle (int16_t radius, uint8_t colour) {
+  if (radius < 0) radius = 0 ;
+  int16_t x1 = Xpos, y1 = Ypos; int16_t dx = 1, dy = 1;
+  int16_t x = radius - 1, y = 0;
+  int16_t err = dx - (radius<<1);
+  while (x >= y) {
+    PlotByte(x1+x, y1-y, colour); PlotByte(x1+x, y1+y, colour); //4
+    PlotByte(x1+y, y1-x, colour); PlotByte(x1+y, y1+x, colour); //3
+    PlotByte(x1-y, y1-x, colour); PlotByte(x1-y, y1+x, colour); //2
+    PlotByte(x1-x, y1-y, colour); PlotByte(x1-x, y1+y, colour); //1
+    if (err > 0) {
+      x = x - 1; dx = dx + 2;
+      err = err - (radius<<1) + dx;
+    } else {
+      y = y + 1; err = err + dy;
+      dy = dy + 2;
+    }
+  }
+  Xpos = x1; Ypos = y1;
+}
+
+void FillCircle (uint8_t radius, uint8_t colour) {
+  if (radius < 0) radius = 0 ;
+  int16_t x1 = Xpos, y1 = Ypos; int16_t dx = 1, dy = 1;
+  int16_t x = radius - 1, y = 0;
+  int16_t err = dx - (radius<<1);
+  while (x >= y) {
+    MoveTo(x1+x, y1-y); DrawTo(x1+x, y1+y, colour); //4
+    MoveTo(x1+y, y1-x); DrawTo(x1+y, y1+x, colour); //3
+    MoveTo(x1-y, y1-x); DrawTo(x1-y, y1+x, colour); //2
+    MoveTo(x1-x, y1-y); DrawTo(x1-x, y1+y, colour); //1
+    if (err > 0) {
+      x = x - 1; dx = dx + 2;
+      err = err - (radius<<1) + dx;
+    } else {
+      y = y + 1; err = err + dy;
+      dy = dy + 2;
+    }
+  }
+  Xpos = x1; Ypos = y1;
+}
+
+#define swap(a, b) { a = a ^ b; b = b ^ a; a = a ^ b; }
+
+void DrawTriangle(int16_t x0, int16_t y0, int16_t x1,
+                  int16_t y1, int16_t x2, int16_t y2, uint8_t colour) {
+  MoveTo(x0, y0); DrawTo(x1, y1, colour); DrawTo(x2, y2, colour); DrawTo(x0, y0, colour);
+}
+
+void FillTriangle(int16_t x0, int16_t y0, int16_t x1,
+                  int16_t y1, int16_t x2, int16_t y2, uint8_t colour) {
+  // Sort coordinates by y order (y2 >= y1 >= y0)
+  if (y0 > y1) { swap(y0, y1); swap(x0, x1); }
+  if (y1 > y2) { swap(y1, y2); swap(x1, x2); }
+  if (y0 > y1) { swap(y0, y1); swap(x0, x1); }
+  TriangleQuad(x0, y0, x1, y1, x2, y2, x2, y2, colour);
+}
+
+void TriangleQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                  int16_t x2, int16_t y2, int16_t x3, int16_t y3, uint8_t colour) {
+  // Coordinates already in y order (y3 >= y2 >= y1 >= y0)
+  int16_t a, b, y;
+
+  // Special case?
+  int16_t x4 = x0 + (x3 - x0) * (y1 - y0) / (y3 - y0);
+  int16_t x5 = x0 + (x3 - x0) * (y2 - y0) / (y3 - y0);
+
+  if ((x5 > x2) == (x4 > x1)) {
+    swap(x2, x5);
+  } else { // Kite
+    x4 = x0 + (x2 - x0) * (y1 - y0) / (y2 - y0);
+    x5 = x1 + (x3 - x1) * (y2 - y1) / (y3 - y1);
+  }
+
+  // Fill bottom section
+  for (y = y0; y <= y1; y++) {
+    a = x0 + (x4 - x0) * (y - y0) / (y1 - y0);
+    b = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
+    if (a > b) swap(a, b);
+    MoveTo(a, y); FillRect(b - a + 1, 1, colour);
+  }
+
+  // Fill middle section
+  for (; y <= y2; y++) {
+    a = x4 + (x2 - x4) * (y - y1) / (y2 - y1);
+    b = x1 + (x5 - x1) * (y - y1) / (y2 - y1);
+    if (a > b) swap(a, b);
+    MoveTo(a, y); FillRect(b - a + 1, 1, colour);
+  }
+
+  // Fill top section
+  for (; y <= y3; y++) {
+    a = x2 + (x3 - x2) * (y - y2) / (y3 - y2);
+    b = x5 + (x3 - x5) * (y - y2) / (y3 - y2);
+    if (a > b) swap(a, b);
+    MoveTo(a, y); FillRect(b - a + 1, 1, colour);
+  }
+}
+
+const uint8_t LastColumn = 41;
 
 // Prints a character to display, with cursor, handling control characters
 void Display (char c) {
@@ -250,16 +397,16 @@ void Display (char c) {
 
 // Keyboard **********************************************************************************
 
-const int ColumnsC = 0b01111100;            // Columns 0 to 4 in port C
-const int ColumnsD = 0b11111100;            // Columns 5 to 11 in port D
-const int RowBits  = 0b00001111;            // Rows 0 to 4 in port B
+const uint8_t ColumnsC = 0b01111100;            // Columns 0 to 4 in port C
+const uint8_t ColumnsD = 0b11111100;            // Columns 5 to 11 in port D
+const uint8_t RowBits  = 0b00001111;            // Rows 0 to 4 in port B
 
 // Character set - stored in program memory
 const char Keymap[] PROGMEM =
 // Without shift
-"1234567890\b" "qwertyuiop\n" "asdfghjkl \e" " zxcvbnm()."
+"1234567890\b" "qwertyuiop\n" "asdfghjkl?\e" " zxcvbnm()."
 // With shift
-"\'\"#=-+/*\\;%" "QWERTYUIOP:" "ASDFGHJKL ~" "?ZXCVBNM<>,";
+"\'\"#=-+/*\\;%" "QWERTYUIOP:" "ASDFGHJKL?~" "?ZXCVBNM<>,";
 
 // Parenthesis highlighting
 void Highlight (int p, uint8_t invert) {
@@ -354,13 +501,13 @@ void InitKybd () {
 
 extern const uint8_t CharMap[96][6] PROGMEM;
 
-void plotsub (uint8_t x, uint8_t y, uint8_t n, int ys[5]) {
-  if (y<64) {
+void plotsub (uint8_t x, uint8_t y, uint8_t n, int16_t ys[5]) {
+  if (y<ysize) {
     uint8_t grey = 0x0F-n*3;
     uint8_t blob = grey;
     if ((x&1) == 0) { blob = grey<<4; ys[n] = y; }
     else {
-      for (int i=0; i<5; i++) {
+      for (uint8_t i=0; i<5; i++) {
         if (y == ys[i]) blob = (0x0F-i*3)<<4 | grey;
       }
     }
@@ -370,15 +517,13 @@ void plotsub (uint8_t x, uint8_t y, uint8_t n, int ys[5]) {
 
 bool checkkey (char key) {
   for (uint8_t k=0; k<44; k++) {
-    if (k != 31) { // filler that throws off testing for space
-      if (pgm_read_byte(&Keymap[k]) == key) {
-        uint8_t column = k % 11;
-        if (column < 5) PORTC = PORTC & ~(1<<(6-column)); else PORTD = PORTD & ~(1<<(12-column));
-        uint8_t row = 3 - k/11; // Gives port time to settle
-        uint8_t input = PINB;
-        if (column < 5) PORTC = PORTC | 1<<(6-column); else PORTD = PORTD | 1<<(12-column);
-        return ((input & 1<<row) == 0);
-      }
+    if (pgm_read_byte(&Keymap[k]) == key) {
+      uint8_t column = k % 11;
+      if (column < 5) PORTC = PORTC & ~(1<<(6-column)); else PORTD = PORTD & ~(1<<(12-column));
+      uint8_t row = 3 - k/11; // Gives port time to settle
+      uint8_t input = PINB;
+      if (column < 5) PORTC = PORTC | 1<<(6-column); else PORTD = PORTD | 1<<(12-column);
+      return ((input & 1<<row) == 0);
     }
   }
   return false;
@@ -402,31 +547,31 @@ void display_sleep(bool state) {
 // Extension Definitions
 
 object *fn_plot (object *args, object *env) {
-  int ys[5] = {-1, -1, -1, -1, -1};
-  int xaxis = -1, yaxis = -1;
+  int16_t ys[5] = {-1, -1, -1, -1, -1};
+  int16_t xaxis = -1, yaxis = -1;
   delay(20);
   ClearDisplay(0); // Clear display
   if (args != NULL && integerp(first(args))) { xaxis = checkinteger(first(args)); args = cdr(args); }
   if (args != NULL && integerp(first(args))) { yaxis = checkinteger(first(args)); args = cdr(args); }
-  int nargs = min(listlength(args),4);
-  for (int x=0; x<256; x++) {
+  uint8_t nargs = min(listlength(args),4);
+  for (uint16_t x=0; x<(xsize * 2); x++) {
     object *rest = args;
-    for (int n=0; n<nargs; n++) {
+    for (uint8_t n=0; n<nargs; n++) {
       object *function = first(rest);
-      int y = checkinteger(apply(function, cons(number(x), NULL), env));
+      int16_t y = checkinteger(apply(function, cons(number(x), NULL), env));
       plotsub(x, y, n+1, ys);
       rest = cdr(rest);
     }
     plotsub(x, yaxis, 0, ys);
-    if (x == xaxis) for (int y=0; y<64; y++) plotsub(x, y, 0, ys);
-    if ((x&1) != 0) for (int i=0; i<5; i++) ys[i] = -1;
+    if (x == xaxis) for (int16_t y=0; y<ysize; y++) plotsub(x, y, 0, ys);
+    if ((x&1) != 0) for (uint8_t i=0; i<5; i++) ys[i] = -1;
   }
   while (!tstflag(ESCAPE)); clrflag(ESCAPE);
   return symbol(NOTHING);
 }
 
 object *fn_plot3d (object *args, object *env) {
-  int xaxis = -1, yaxis = -1;
+  int16_t xaxis = -1, yaxis = -1;
   uint8_t blob;
   delay(20);
   ClearDisplay(0); // Clear display
@@ -434,9 +579,9 @@ object *fn_plot3d (object *args, object *env) {
   if (args != NULL && integerp(first(args))) { yaxis = checkinteger(first(args)); args = cdr(args); }
   if (args != NULL) {
     object *function = first(args);
-    for (int y=0; y<64; y++) {
-      for (int x=0; x<256; x++) {
-        int z = checkinteger(apply(function, cons(number(x), cons(number(y), NULL)), env));
+    for (uint16_t y=0; y<ysize; y++) {
+      for (uint16_t x=0; x<(xsize * 2); x++) {
+        int16_t z = checkinteger(apply(function, cons(number(x), cons(number(y), NULL)), env));
         if (x == xaxis || y == yaxis) z = 0xF;
         if ((x&1) == 0) blob = z<<4; else blob = blob | (z&0xF);
         PlotByte(x>>1, y, blob);
@@ -459,8 +604,8 @@ object *fn_glyphpixel (object *args, object *env) {
 
 object *fn_plotpixel (object *args, object *env) {
   (void) env;
-  int x = checkinteger(first(args));
-  int y = checkinteger(second(args));
+  int16_t x = checkinteger(first(args));
+  int16_t y = checkinteger(second(args));
   args = cddr(args);
   uint8_t grey = 0xff;
   if (args != NULL) grey = checkinteger(first(args));
@@ -476,6 +621,80 @@ object *fn_fillscreen (object *args, object *env) {
   return nil;
 }
 
+object *fn_drawline (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[4];
+  for (uint8_t i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  MoveTo(params[0], (ysize - 1)-params[1]);
+  DrawTo(params[2], (ysize - 1)-params[3], grey);
+  return nil;
+}
+
+object *fn_drawrect (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[4];
+  for (uint8_t i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  MoveTo(params[0], (ysize - 1)-params[1]);
+  DrawRect(params[2]-params[0], params[3]-params[1], grey);
+  return nil;
+}
+
+object *fn_fillrect (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[4];
+  for (uint8_t i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  MoveTo(params[0], (ysize - 1)-params[1]);
+  FillRect(params[2]-params[0], params[3]-params[1], grey);
+  return nil;
+}
+
+object *fn_drawcircle (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[3];
+  for (uint8_t i=0; i<3; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  MoveTo(params[0], (ysize - 1)-params[1]);
+  DrawCircle(params[2], grey);
+  return nil;
+}
+
+object *fn_fillcircle (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[3];
+  for (uint8_t i=0; i<3; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  MoveTo(params[0], (ysize - 1)-params[1]);
+  FillCircle(params[2], grey);
+  return nil;
+}
+
+object *fn_drawtriangle (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[6];
+  for (uint8_t i=0; i<6; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  DrawTriangle(params[0], params[1], params[2], params[3], params[4], params[5], grey);
+  return nil;
+}
+
+object *fn_filltriangle (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0xff;
+  int16_t params[6];
+  for (uint8_t i=0; i<6; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) grey = checkinteger(car(args));
+  FillTriangle(params[0], params[1], params[2], params[3], params[4], params[5], grey);
+  return nil;
+}
 
 object *fn_checkkey (object *args, object *env) {
   (void) env;
@@ -501,6 +720,16 @@ const char stringGPX[] PROGMEM = "glyph-pixel";
 const char stringPPX[] PROGMEM = "plot-pixel";
 const char stringFSN[] PROGMEM = "fill-screen";
 
+const char stringDRP[] PROGMEM = "draw-pixel";
+const char stringDRL[] PROGMEM = "draw-line";
+const char stringDRR[] PROGMEM = "draw-rect";
+const char stringFIR[] PROGMEM = "fill-rect";
+const char stringDRC[] PROGMEM = "draw-circle";
+const char stringFIC[] PROGMEM = "fill-circle";
+const char stringDRT[] PROGMEM = "draw-triangle";
+const char stringFIT[] PROGMEM = "fill-triangle";
+// const char stringG13[] PROGMEM = "draw-char";
+
 const char stringCHK[] PROGMEM = "check-key";
 const char stringKBD[] PROGMEM = "keyboard";
 const char stringSFT[] PROGMEM = ":shift-key";
@@ -518,19 +747,47 @@ const char docP3D[] PROGMEM = "(plot3d [x-intercept y-intercept] [function])\n"
 const char docGPX[] PROGMEM = "(glyph-pixel char x y)\n"
 "Returns the pixel value from the 6x8 bitmap for character char, where x can be from 0 to 5\n"
 "and y can be from 0 to 7.";
-const char docPPX[] PROGMEM = "(plot-pixel x y [pixel])\n"
+const char docPPX[] PROGMEM = "(plot-pixel|draw-pixel x y [pixel])\n"
 "Plots a pixel to the specified x,y coordinates, where x should be 0 to 127 and y should\n"
 "be 0 to 63.\n"
 "Because of the way that the display memory is mapped to the display, plot-pixel plots\n"
 "two adjacent pixels with an x resolution of 128. The third parameter pixel specified the\n"
-"colours of the two pixels; if omitted it defaults to #xFF which gives two adjacent white pixels.\n";
-const char docFSN[] PROGMEM = "(fill-screen [colour])\n"
+"greys of the two pixels; if omitted it defaults to #xFF which gives two adjacent white pixels.\n";
+const char docFSN[] PROGMEM = "(fill-screen [grey])\n"
 "Clears the screen to black, or fills it with a specified pixel value.";
+
+// const char docG1[] PROGMEM = "(draw-pixel x y [grey])\n"
+// "Draws a pixel at coordinates (x,y) in grey, or white if omitted.";
+const char docDRL[] PROGMEM = "(draw-line x0 y0 x1 y1 [grey])\n"
+"Draws a line from (x0,y0) to (x1,y1) in grey, or white if omitted.";
+const char docDRR[] PROGMEM = "(draw-rect x y w h [grey])\n"
+"Draws an outline rectangle with its top left corner at (x,y), with width w,\n"
+"and with height h. The outline is drawn in grey, or white if omitted.";
+const char docFIR[] PROGMEM = "(fill-rect x y w h [grey])\n"
+"Draws a filled rectangle with its top left corner at (x,y), with width w,\n"
+"and with height h. The outline is drawn in grey, or white if omitted.";
+const char docDRC[] PROGMEM = "(draw-circle x y r [grey])\n"
+"Draws an outline circle with its centre at (x, y) and with radius r.\n"
+"The circle is drawn in grey, or white if omitted.";
+const char docFIC[] PROGMEM = "(fill-circle x y r [grey])\n"
+"Draws a filled circle with its centre at (x, y) and with radius r.\n"
+"The circle is drawn in grey, or white if omitted.";
+const char docDRT[] PROGMEM = "(draw-triangle x0 y0 x1 y1 x2 y2 [grey])\n"
+"Draws an outline triangle between (x1,y1), (x2,y2), and (x3,y3).\n"
+"The outline is drawn in grey, or white if omitted.";
+const char docFIT[] PROGMEM = "(fill-triangle x0 y0 x1 y1 x2 y2 [grey])\n"
+"Draws a filled triangle between (x1,y1), (x2,y2), and (x3,y3).\n"
+"The outline is drawn in grey, or white if omitted.";
+// const char docG13[] PROGMEM = "(draw-char x y char [grey background size])\n"
+// "Draws the character char with its top left corner at (x,y).\n"
+// "The character is drawn in a 5 x 7 pixel font in grey against background,\n"
+// "which default to white and black respectively.\n"
+// "The character can optionally be scaled by size.";
 
 const char docCHK[] PROGMEM = "(check-key char)\n"
 "Returns t if the key char is pressed, or nil if not.";
-const char docKBD[] PROGMEM = "(keyboard enable)\n"
-"Disables the keyboard if enable is nil.";
+const char docKBD[] PROGMEM = "(keyboard [enable])\n"
+"Enables or disables the keyboard if enable is given. Returns the current state.";
 
 // Symbol lookup table
 const tbl_entry_t lookup_table2[] PROGMEM = {
@@ -539,6 +796,16 @@ const tbl_entry_t lookup_table2[] PROGMEM = {
   { stringGPX, fn_glyphpixel,         0233, docGPX },
   { stringPPX, fn_plotpixel,          0223, docPPX },
   { stringFSN, fn_fillscreen,         0201, docFSN },
+
+  { stringDRP, fn_plotpixel,          0223, docPPX },
+  { stringDRL, fn_drawline,           0245, docDRL },
+  { stringDRR, fn_drawrect,           0245, docDRR },
+  { stringFIR, fn_fillrect,           0245, docFIR },
+  { stringDRC, fn_drawcircle,         0234, docDRC },
+  { stringFIC, fn_fillcircle,         0234, docFIC },
+  { stringDRT, fn_drawtriangle,       0267, docDRT },
+  { stringFIT, fn_filltriangle,       0267, docFIT },
+//   { stringG13, fn_drawchar, 0236, docG13 },
 
   { stringCHK, fn_checkkey,           0211, docCHK },
   { stringKBD, fn_keyboard,           0201, docKBD },
