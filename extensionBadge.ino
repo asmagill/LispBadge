@@ -195,7 +195,7 @@ void PlotChar (uint8_t ch, uint8_t line, uint8_t column) {
   PINA = 1<<cs;                           // cs high
 }
 
-void PlotByte (int16_t x, int16_t y, int16_t grey) {
+void PlotByte (int16_t x, int16_t y, uint8_t grey) {
   if ((x < 0) || (x >= xsize) || (y < 0) || (y >= ysize)) return ;
   PINA = 1<<cs | 1<<dc;                   // cs and dc low
   Send(0x00 + (x & 0x0F));                // Column start low
@@ -229,35 +229,35 @@ void DrawTo (int16_t x, int16_t y, uint8_t grey) {
 //   PlotByte(255, 0, grey); // Flush
 }
 
-void DrawRect (int16_t w, int16_t h, uint8_t colour) {
+void DrawRect (int16_t w, int16_t h, uint8_t grey) {
   if (w < 0) w = 0 ;
   if (h < 0) h = 0 ;
   int16_t x = Xpos, y = Ypos;
-  MoveTo(x, y); DrawTo(x+w-1, y, colour);
-  DrawTo(x+w-1, y+h-1, colour); DrawTo(x, y+h-1, colour);
-  DrawTo(x, y, colour);
+  MoveTo(x, y); DrawTo(x+w-1, y, grey);
+  DrawTo(x+w-1, y+h-1, grey); DrawTo(x, y+h-1, grey);
+  DrawTo(x, y, grey);
 }
 
-void FillRect (int16_t w, int16_t h, uint8_t colour) {
+void FillRect (int16_t w, int16_t h, uint8_t grey) {
   if (w < 0) w = 0 ;
   if (h < 0) h = 0 ;
   int16_t x = Xpos, y = Ypos;
   for (int16_t i=x; i<x+w; i++) {
-    MoveTo(i, y); DrawTo(i, y-h+1, colour);
+    MoveTo(i, y); DrawTo(i, y-h+1, grey);
   }
   Xpos = x; Ypos = y;
 }
 
-void DrawCircle (int16_t radius, uint8_t colour) {
+void DrawCircle (int16_t radius, uint8_t grey) {
   if (radius < 0) radius = 0 ;
   int16_t x1 = Xpos, y1 = Ypos; int16_t dx = 1, dy = 1;
   int16_t x = radius - 1, y = 0;
   int16_t err = dx - (radius<<1);
   while (x >= y) {
-    PlotByte(x1+x, y1-y, colour); PlotByte(x1+x, y1+y, colour); //4
-    PlotByte(x1+y, y1-x, colour); PlotByte(x1+y, y1+x, colour); //3
-    PlotByte(x1-y, y1-x, colour); PlotByte(x1-y, y1+x, colour); //2
-    PlotByte(x1-x, y1-y, colour); PlotByte(x1-x, y1+y, colour); //1
+    PlotByte(x1+x, y1-y, grey); PlotByte(x1+x, y1+y, grey); //4
+    PlotByte(x1+y, y1-x, grey); PlotByte(x1+y, y1+x, grey); //3
+    PlotByte(x1-y, y1-x, grey); PlotByte(x1-y, y1+x, grey); //2
+    PlotByte(x1-x, y1-y, grey); PlotByte(x1-x, y1+y, grey); //1
     if (err > 0) {
       x = x - 1; dx = dx + 2;
       err = err - (radius<<1) + dx;
@@ -269,16 +269,16 @@ void DrawCircle (int16_t radius, uint8_t colour) {
   Xpos = x1; Ypos = y1;
 }
 
-void FillCircle (uint8_t radius, uint8_t colour) {
+void FillCircle (uint8_t radius, uint8_t grey) {
   if (radius < 0) radius = 0 ;
   int16_t x1 = Xpos, y1 = Ypos; int16_t dx = 1, dy = 1;
   int16_t x = radius - 1, y = 0;
   int16_t err = dx - (radius<<1);
   while (x >= y) {
-    MoveTo(x1+x, y1-y); DrawTo(x1+x, y1+y, colour); //4
-    MoveTo(x1+y, y1-x); DrawTo(x1+y, y1+x, colour); //3
-    MoveTo(x1-y, y1-x); DrawTo(x1-y, y1+x, colour); //2
-    MoveTo(x1-x, y1-y); DrawTo(x1-x, y1+y, colour); //1
+    MoveTo(x1+x, y1-y); DrawTo(x1+x, y1+y, grey); //4
+    MoveTo(x1+y, y1-x); DrawTo(x1+y, y1+x, grey); //3
+    MoveTo(x1-y, y1-x); DrawTo(x1-y, y1+x, grey); //2
+    MoveTo(x1-x, y1-y); DrawTo(x1-x, y1+y, grey); //1
     if (err > 0) {
       x = x - 1; dx = dx + 2;
       err = err - (radius<<1) + dx;
@@ -293,21 +293,21 @@ void FillCircle (uint8_t radius, uint8_t colour) {
 #define swap(a, b) { a = a ^ b; b = b ^ a; a = a ^ b; }
 
 void DrawTriangle(int16_t x0, int16_t y0, int16_t x1,
-                  int16_t y1, int16_t x2, int16_t y2, uint8_t colour) {
-  MoveTo(x0, y0); DrawTo(x1, y1, colour); DrawTo(x2, y2, colour); DrawTo(x0, y0, colour);
+                  int16_t y1, int16_t x2, int16_t y2, uint8_t grey) {
+  MoveTo(x0, y0); DrawTo(x1, y1, grey); DrawTo(x2, y2, grey); DrawTo(x0, y0, grey);
 }
 
 void FillTriangle(int16_t x0, int16_t y0, int16_t x1,
-                  int16_t y1, int16_t x2, int16_t y2, uint8_t colour) {
+                  int16_t y1, int16_t x2, int16_t y2, uint8_t grey) {
   // Sort coordinates by y order (y2 >= y1 >= y0)
   if (y0 > y1) { swap(y0, y1); swap(x0, x1); }
   if (y1 > y2) { swap(y1, y2); swap(x1, x2); }
   if (y0 > y1) { swap(y0, y1); swap(x0, x1); }
-  TriangleQuad(x0, y0, x1, y1, x2, y2, x2, y2, colour);
+  TriangleQuad(x0, y0, x1, y1, x2, y2, x2, y2, grey);
 }
 
 void TriangleQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
-                  int16_t x2, int16_t y2, int16_t x3, int16_t y3, uint8_t colour) {
+                  int16_t x2, int16_t y2, int16_t x3, int16_t y3, uint8_t grey) {
   // Coordinates already in y order (y3 >= y2 >= y1 >= y0)
   int16_t a, b, y;
 
@@ -327,7 +327,7 @@ void TriangleQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     a = x0 + (x4 - x0) * (y - y0) / (y1 - y0);
     b = x0 + (x1 - x0) * (y - y0) / (y1 - y0);
     if (a > b) swap(a, b);
-    MoveTo(a, y); FillRect(b - a + 1, 1, colour);
+    MoveTo(a, y); FillRect(b - a + 1, 1, grey);
   }
 
   // Fill middle section
@@ -335,7 +335,7 @@ void TriangleQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     a = x4 + (x2 - x4) * (y - y1) / (y2 - y1);
     b = x1 + (x5 - x1) * (y - y1) / (y2 - y1);
     if (a > b) swap(a, b);
-    MoveTo(a, y); FillRect(b - a + 1, 1, colour);
+    MoveTo(a, y); FillRect(b - a + 1, 1, grey);
   }
 
   // Fill top section
@@ -343,7 +343,7 @@ void TriangleQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
     a = x2 + (x3 - x2) * (y - y2) / (y3 - y2);
     b = x5 + (x3 - x5) * (y - y2) / (y3 - y2);
     if (a > b) swap(a, b);
-    MoveTo(a, y); FillRect(b - a + 1, 1, colour);
+    MoveTo(a, y); FillRect(b - a + 1, 1, grey);
   }
 }
 
