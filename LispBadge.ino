@@ -28,8 +28,8 @@ const char LispLibrary[] PROGMEM =  R"lisplibrary(
 // #define sdcardsupport
 #define lisplibrary
 #define assemblerlist
-// #define lineeditor
-// #define vt100
+#define lineeditor
+#define vt100
 #define extensions
 
 // Includes
@@ -5631,9 +5631,11 @@ int gserial () {
   }
 #if defined(lineeditor)
   while (!KybdAvailable) {
-    while (!Serial.available());
-    char temp = Serial.read();
-    processkey(temp);
+//     while (!Serial.available());
+    if (Serial.available()) {
+      char temp = Serial.read();
+      processkey(temp);
+    }
   }
   if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
   KybdAvailable = 0;
